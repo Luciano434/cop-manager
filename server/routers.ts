@@ -1,7 +1,10 @@
-import { COOKIE_NAME } from "@shared/const";
+import bcrypt from "bcryptjs";
+import { COOKIE_NAME, NOT_ADMIN_ERR_MSG } from "@shared/const";
+import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { adminProcedure, publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
   getProcedures,
@@ -29,19 +32,148 @@ import {
   getEvidencesByStep,
   createEvidence,
   deleteEvidence,
+  getUserByUsername,
+  hasAnyUser,
+  createLocalUser,
+  listUsers as listUsersFromDb,
+  setUserActive,
+  deleteUserById,
+  updateUserPassword,
 } from "./db";
 
 export const appRouter = router({
   system: systemRouter,
+
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(opts => {
+      if (!opts.ctx.user) return null;
+      const { passwordHash: _, ...safeUser } = opts.ctx.user;
+      return safeUser;
+    }),
+
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
+      return { success: true } as const;
     }),
+
+    hasUsers: publicProcedure.query(async () => {
+      return hasAnyUser();
+    }),
+
+    login: publicProcedure
+      .input(z.object({
+        username: z.string().min(1),
+        password: z.string().min(1),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const user = await getUserByUsername(input.username.trim().toLowerCase());
+
+        if (!user || !user.passwordHash || !user.active) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Usuário ou senha inválidos" });
+        }
+
+        const valid = await bcrypt.compare(input.password, user.passwordHash);
+        if (!valid) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Usuário ou senha inválidos" });
+        }
+
+        const token = await sdk.signSession({
+          openId: user.username!,
+          appId: "local-auth",
+          name: user.name || user.username!,
+        });
+
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
+
+        const { passwordHash: _, ...safeUser } = user;
+        return { user: safeUser };
+      }),
+
+    createFirstAdmin: publicProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        username: z.string().min(1),
+        password: z.string().min(6),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const alreadyExists = await hasAnyUser();
+        if (alreadyExists) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Sistema já possui usuários cadastrados" });
+        }
+
+        const username = input.username.trim().toLowerCase();
+        const passwordHash = await bcrypt.hash(input.password, 10);
+        await createLocalUser({ username, name: input.name.trim(), passwordHash, role: "ADMIN" });
+
+        const user = await getUserByUsername(username);
+        if (!user) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar usuário" });
+        }
+
+        const token = await sdk.signSession({
+          openId: user.username!,
+          appId: "local-auth",
+          name: user.name || user.username!,
+        });
+
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
+
+        const { passwordHash: _, ...safeUser } = user;
+        return { user: safeUser };
+      }),
+
+    listUsers: adminProcedure.query(async () => {
+      return listUsersFromDb();
+    }),
+
+    createUser: adminProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        username: z.string().min(1),
+        password: z.string().min(6),
+        role: z.enum(["ADMIN", "ENGENHARIA", "QUALIDADE", "AUDITOR", "USUARIO"]),
+      }))
+      .mutation(async ({ input }) => {
+        const username = input.username.trim().toLowerCase();
+        const existing = await getUserByUsername(username);
+        if (existing) {
+          throw new TRPCError({ code: "CONFLICT", message: "Este login já existe" });
+        }
+        const passwordHash = await bcrypt.hash(input.password, 10);
+        await createLocalUser({ username, name: input.name.trim(), passwordHash, role: input.role });
+        return { success: true };
+      }),
+
+    toggleActive: adminProcedure
+      .input(z.object({ id: z.number(), active: z.boolean() }))
+      .mutation(async ({ input, ctx }) => {
+        if (input.id === ctx.user.id) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Não é permitido alterar o próprio status" });
+        }
+        await setUserActive(input.id, input.active);
+        return { success: true };
+      }),
+
+    deleteUser: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (input.id === ctx.user.id) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Não é permitido excluir o próprio usuário" });
+        }
+        await deleteUserById(input.id);
+        return { success: true };
+      }),
+
+    changePassword: adminProcedure
+      .input(z.object({ id: z.number(), password: z.string().min(6) }))
+      .mutation(async ({ input }) => {
+        const passwordHash = await bcrypt.hash(input.password, 10);
+        await updateUserPassword(input.id, passwordHash);
+        return { success: true };
+      }),
   }),
 
   // Procedures
@@ -49,7 +181,7 @@ export const appRouter = router({
     list: publicProcedure.query(async () => {
       return getProcedures();
     }),
-    
+
     get: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {

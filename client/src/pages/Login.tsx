@@ -1,46 +1,8 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
 
 type UserRole = "ADMIN" | "QUALIDADE" | "ENGENHARIA" | "AUDITOR" | "USUARIO";
-
-type User = {
-  username: string;
-  password?: string; // legado: será migrado automaticamente
-  passwordHash?: string;
-  name: string;
-  role: UserRole;
-  active?: boolean;
-};
-
-type LoggedUser = Omit<User, "password" | "passwordHash"> & {
-  loginAt: string;
-};
-
-function getUsers(): User[] {
-  try {
-    const stored = localStorage.getItem("users");
-    if (!stored) return [];
-
-    const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveUsers(users: User[]) {
-  localStorage.setItem("users", JSON.stringify(users));
-}
-
-async function sha256(value: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(value);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 function normalizeUsername(value: string): string {
   return value.trim().toLowerCase();
@@ -59,8 +21,11 @@ export default function Login() {
 
   const [error, setError] = useState("");
 
-  const users = getUsers();
-  const isFirstAccess = users.length === 0;
+  const { data: hasUsers, isLoading: checkingUsers } = trpc.auth.hasUsers.useQuery();
+  const isFirstAccess = hasUsers === false;
+
+  const loginMutation = trpc.auth.login.useMutation();
+  const createFirstAdminMutation = trpc.auth.createFirstAdmin.useMutation();
 
   async function handleCreateFirstAdmin() {
     const name = firstAdminName.trim();
@@ -82,33 +47,26 @@ export default function Login() {
       return;
     }
 
-    const passwordHash = await sha256(adminPassword);
+    try {
+      const result = await createFirstAdminMutation.mutateAsync({
+        name,
+        username: adminUsername,
+        password: adminPassword,
+      });
 
-    const firstAdmin: User = {
-      username: adminUsername,
-      name,
-      role: "ADMIN",
-      active: true,
-      passwordHash,
-    };
+      localStorage.setItem("user", JSON.stringify({
+        username: result.user.username,
+        name: result.user.name,
+        role: result.user.role as UserRole,
+      }));
 
-    saveUsers([firstAdmin]);
-
-    const loggedUser: LoggedUser = {
-      username: firstAdmin.username,
-      name: firstAdmin.name,
-      role: firstAdmin.role,
-      active: firstAdmin.active,
-      loginAt: new Date().toISOString(),
-    };
-
-    localStorage.setItem("user", JSON.stringify(loggedUser));
-    setLocation("/procedimentos");
+      setLocation("/procedimentos");
+    } catch (err: any) {
+      setError(err?.message || "Erro ao criar administrador.");
+    }
   }
 
   async function handleLogin() {
-    const currentUsers = getUsers();
-
     const normalizedUsername = normalizeUsername(username);
 
     if (!normalizedUsername || !password) {
@@ -116,57 +74,30 @@ export default function Login() {
       return;
     }
 
-    const userIndex = currentUsers.findIndex(
-      (u) => normalizeUsername(u.username) === normalizedUsername
+    try {
+      const result = await loginMutation.mutateAsync({
+        username: normalizedUsername,
+        password,
+      });
+
+      localStorage.setItem("user", JSON.stringify({
+        username: result.user.username,
+        name: result.user.name,
+        role: result.user.role as UserRole,
+      }));
+
+      setLocation("/procedimentos");
+    } catch {
+      setError("Usuário ou senha inválidos");
+    }
+  }
+
+  if (checkingUsers) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <div className="text-white text-sm">Carregando...</div>
+      </div>
     );
-
-    if (userIndex < 0) {
-      setError("Usuário ou senha inválidos");
-      return;
-    }
-
-    const user = currentUsers[userIndex];
-
-    if (user.active === false) {
-      setError("Usuário inativo. Solicite reativação ao administrador.");
-      return;
-    }
-
-    const typedPasswordHash = await sha256(password);
-
-    let passwordMatches = false;
-
-    if (user.passwordHash) {
-      passwordMatches = user.passwordHash === typedPasswordHash;
-    } else if (user.password) {
-      passwordMatches = user.password === password;
-
-      if (passwordMatches) {
-        currentUsers[userIndex] = {
-          ...user,
-          passwordHash: typedPasswordHash,
-        };
-
-        delete currentUsers[userIndex].password;
-        saveUsers(currentUsers);
-      }
-    }
-
-    if (!passwordMatches) {
-      setError("Usuário ou senha inválidos");
-      return;
-    }
-
-    const loggedUser: LoggedUser = {
-      username: user.username,
-      name: user.name,
-      role: user.role,
-      active: user.active,
-      loginAt: new Date().toISOString(),
-    };
-
-    localStorage.setItem("user", JSON.stringify(loggedUser));
-    setLocation("/procedimentos");
   }
 
   return (
@@ -194,8 +125,7 @@ export default function Login() {
         {isFirstAccess ? (
           <div className="space-y-4">
             <div className="text-sm text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
-              Primeiro acesso detectado. Crie o administrador inicial do
-              sistema.
+              Primeiro acesso detectado. Crie o administrador inicial do sistema.
             </div>
 
             <input
@@ -203,10 +133,7 @@ export default function Login() {
               placeholder="Nome do administrador"
               className="w-full border border-slate-300 px-3 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700"
               value={firstAdminName}
-              onChange={(e) => {
-                setFirstAdminName(e.target.value);
-                setError("");
-              }}
+              onChange={(e) => { setFirstAdminName(e.target.value); setError(""); }}
             />
 
             <input
@@ -214,10 +141,7 @@ export default function Login() {
               placeholder="Usuário administrador"
               className="w-full border border-slate-300 px-3 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700"
               value={firstAdminUsername}
-              onChange={(e) => {
-                setFirstAdminUsername(e.target.value);
-                setError("");
-              }}
+              onChange={(e) => { setFirstAdminUsername(e.target.value); setError(""); }}
             />
 
             <input
@@ -225,10 +149,7 @@ export default function Login() {
               placeholder="Senha"
               className="w-full border border-slate-300 px-3 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700"
               value={firstAdminPassword}
-              onChange={(e) => {
-                setFirstAdminPassword(e.target.value);
-                setError("");
-              }}
+              onChange={(e) => { setFirstAdminPassword(e.target.value); setError(""); }}
             />
 
             <input
@@ -236,26 +157,20 @@ export default function Login() {
               placeholder="Confirmar senha"
               className="w-full border border-slate-300 px-3 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700"
               value={firstAdminPasswordConfirm}
-              onChange={(e) => {
-                setFirstAdminPasswordConfirm(e.target.value);
-                setError("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreateFirstAdmin();
-              }}
+              onChange={(e) => { setFirstAdminPasswordConfirm(e.target.value); setError(""); }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreateFirstAdmin(); }}
             />
 
             {error && (
-              <div className="text-red-600 text-sm text-center font-medium">
-                {error}
-              </div>
+              <div className="text-red-600 text-sm text-center font-medium">{error}</div>
             )}
 
             <button
               onClick={handleCreateFirstAdmin}
-              className="w-full bg-slate-900 hover:bg-blue-900 text-white py-3 rounded-lg transition font-semibold tracking-wide"
+              disabled={createFirstAdminMutation.isPending}
+              className="w-full bg-slate-900 hover:bg-blue-900 disabled:opacity-50 text-white py-3 rounded-lg transition font-semibold tracking-wide"
             >
-              Criar administrador
+              {createFirstAdminMutation.isPending ? "Criando..." : "Criar administrador"}
             </button>
           </div>
         ) : (
@@ -266,10 +181,7 @@ export default function Login() {
                 placeholder="Usuário"
                 className="w-full border border-slate-300 px-3 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700"
                 value={username}
-                onChange={(e) => {
-                  setUsername(e.target.value);
-                  setError("");
-                }}
+                onChange={(e) => { setUsername(e.target.value); setError(""); }}
               />
 
               <input
@@ -277,27 +189,21 @@ export default function Login() {
                 placeholder="Senha"
                 className="w-full border border-slate-300 px-3 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700"
                 value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError("");
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleLogin();
-                }}
+                onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleLogin(); }}
               />
             </div>
 
             {error && (
-              <div className="text-red-600 text-sm text-center font-medium">
-                {error}
-              </div>
+              <div className="text-red-600 text-sm text-center font-medium">{error}</div>
             )}
 
             <button
               onClick={handleLogin}
-              className="w-full bg-slate-900 hover:bg-blue-900 text-white py-3 rounded-lg transition font-semibold tracking-wide"
+              disabled={loginMutation.isPending}
+              className="w-full bg-slate-900 hover:bg-blue-900 disabled:opacity-50 text-white py-3 rounded-lg transition font-semibold tracking-wide"
             >
-              Entrar
+              {loginMutation.isPending ? "Entrando..." : "Entrar"}
             </button>
           </>
         )}

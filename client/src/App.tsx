@@ -21,7 +21,7 @@ import ImportarProcedimento from "./pages/ImportarProcedimento";
 import NovoProcedimento from "./pages/NovoProcedimento";
 import { ProjectProvider } from "./contexts/ProjectContext";
 
-type UserRole = "USUARIO" | "ENGENHARIA" | "QUALIDADE" | "ADMIN";
+type UserRole = "USUARIO" | "ENGENHARIA" | "QUALIDADE" | "AUDITOR" | "ADMIN";
 
 type LoggedUser = {
   username: string;
@@ -115,7 +115,7 @@ function Router() {
 
       <Route path="/dashboard-cop">
         {() => (
-          <ProtectedRoute allowedRoles={["QUALIDADE", "ADMIN"]}>
+          <ProtectedRoute allowedRoles={["QUALIDADE", "AUDITOR", "ADMIN"]}>
             <DashboardCOP />
           </ProtectedRoute>
         )}
@@ -123,7 +123,7 @@ function Router() {
 
       <Route path="/relatorio-executivo">
         {() => (
-          <ProtectedRoute allowedRoles={["QUALIDADE", "ADMIN"]}>
+          <ProtectedRoute allowedRoles={["QUALIDADE", "AUDITOR", "ADMIN"]}>
             <RelatorioExecutivo />
           </ProtectedRoute>
         )}
@@ -131,7 +131,7 @@ function Router() {
 
       <Route path="/relatorio-auditoria">
         {() => (
-          <ProtectedRoute allowedRoles={["QUALIDADE", "ADMIN"]}>
+          <ProtectedRoute allowedRoles={["QUALIDADE", "AUDITOR", "ADMIN"]}>
             <RelatorioAuditoria />
           </ProtectedRoute>
         )}
@@ -155,7 +155,7 @@ function Router() {
 
       <Route path="/requisitos">
         {() => (
-          <ProtectedRoute allowedRoles={["ENGENHARIA", "QUALIDADE", "ADMIN"]}>
+          <ProtectedRoute allowedRoles={["ENGENHARIA", "QUALIDADE", "AUDITOR", "ADMIN"]}>
             <Requisitos />
           </ProtectedRoute>
         )}

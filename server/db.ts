@@ -254,3 +254,69 @@ export async function deleteEvidence(id: number) {
   if (!db) throw new Error("Database not available");
   return db.delete(evidences).where(eq(evidences.id, id));
 }
+
+// Local auth queries
+export async function getUserByUsername(username: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function hasAnyUser(): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db.select({ id: users.id }).from(users).limit(1);
+  return result.length > 0;
+}
+
+export async function createLocalUser(data: {
+  username: string;
+  name: string;
+  passwordHash: string;
+  role: string;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(users).values({
+    openId: data.username,
+    username: data.username,
+    name: data.name,
+    passwordHash: data.passwordHash,
+    role: data.role,
+    active: true,
+    lastSignedIn: new Date(),
+  });
+}
+
+export async function listUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: users.id,
+    username: users.username,
+    name: users.name,
+    email: users.email,
+    role: users.role,
+    active: users.active,
+    createdAt: users.createdAt,
+  }).from(users);
+}
+
+export async function setUserActive(id: number, active: boolean): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set({ active }).where(eq(users.id, id));
+}
+
+export async function deleteUserById(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(users).where(eq(users.id, id));
+}
+
+export async function updateUserPassword(id: number, passwordHash: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set({ passwordHash }).where(eq(users.id, id));
+}
