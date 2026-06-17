@@ -1,0 +1,93 @@
+{
+  "id": 2,
+  "code": "PR-02",
+  "name": "Controle de Modificações de Projeto",
+  "description": "Procedimento para controle de alterações de projeto, garantindo rastreabilidade, aprovação e conformidade com requisitos regulatórios.",
+  "status": "em_desenvolvimento",
+  "responsible": "Engenharia",
+  "createdAt": "2026-04-15",
+  "steps": [
+    {
+      "id": 1,
+      "stepNumber": 1,
+      "name": "Identificação da Modificação",
+      "description": "A Engenharia registra a necessidade de modificação de projeto, com descrição da alteração proposta, justificativa técnica e impacto preliminar.",
+      "howToExecute": "Registrar a solicitação de modificação no sistema interno ou planilha controlada.\nDescrever a alteração pretendida, sua justificativa e o motivo técnico.\nAnexar documentos, desenhos, requisitos ou informações de entrada aplicáveis.\nIdentificar o responsável pela abertura da modificação.",
+      "responsible": "Engenharia",
+      "input": "Solicitação de alteração, requisito técnico, necessidade de correção ou melhoria",
+      "output": "Registro inicial da modificação",
+      "evidenceType": "Registro de modificação",
+      "evidenceLocation": "Sistema interno / pasta controlada de projeto",
+      "auditAccess": "Consulta ao registro eletrônico e aos anexos da solicitação",
+      "acceptanceCriteria": "A modificação deve estar formalmente registrada, identificada e rastreável",
+      "status": "em_desenvolvimento"
+    },
+    {
+      "id": 2,
+      "stepNumber": 2,
+      "name": "Análise de Impacto",
+      "description": "A Engenharia avalia os impactos técnicos, regulatórios, documentais e de interface com produção e aeronavegabilidade.",
+      "howToExecute": "Avaliar o impacto da modificação sobre desenho, especificação, montagem, desempenho, certificação e interfaces aplicáveis.\nVerificar necessidade de atualização de documentos afetados.\nRegistrar a conclusão da análise e eventuais ações decorrentes.\nEncaminhar para validação técnica quando aplicável.",
+      "responsible": "Engenharia",
+      "input": "Registro inicial da modificação",
+      "output": "Análise de impacto concluída",
+      "evidenceType": "Documento de análise de impacto",
+      "evidenceLocation": "Sistema interno / pasta controlada de projeto",
+      "auditAccess": "Consulta ao documento de análise vinculado ao registro da modificação",
+      "acceptanceCriteria": "Todos os impactos relevantes devem estar analisados e registrados",
+      "status": "em_desenvolvimento"
+    },
+    {
+      "id": 3,
+      "stepNumber": 3,
+      "name": "Aprovação da Modificação",
+      "description": "O responsável técnico analisa a modificação proposta e formaliza a aprovação antes da implementação.",
+      "howToExecute": "Submeter a modificação e a análise de impacto para aprovação técnica.\nVerificar se a documentação de suporte está completa.\nFormalizar a aprovação por assinatura, despacho ou registro eletrônico.\nLiberar a continuidade do processo somente após aprovação.",
+      "responsible": "Engenharia / Responsável Técnico",
+      "input": "Análise de impacto concluída",
+      "output": "Modificação aprovada formalmente",
+      "evidenceType": "Aprovação formal da modificação",
+      "evidenceLocation": "Sistema interno / registro eletrônico de aprovação",
+      "auditAccess": "Consulta ao histórico de aprovação e identificação do aprovador",
+      "acceptanceCriteria": "A modificação deve possuir aprovação formal antes da implementação",
+      "status": "em_desenvolvimento"
+    }
+  ],
+  "requirements": [
+    {
+      "id": 1,
+      "code": "RBAC 21",
+      "description": "Controle de modificações de projeto e manutenção da conformidade do produto."
+    },
+    {
+      "id": 2,
+      "code": "IS 21-005",
+      "description": "Base de certificação, dados de projeto e rastreabilidade de alterações."
+    },
+    {
+      "id": 3,
+      "code": "IS 21-006",
+      "description": "Integração do sistema da qualidade com o controle de modificações."
+    }
+  ],
+  "evidences": [
+    {
+      "id": 1,
+      "fileName": "Registro eletrônico de modificação",
+      "uploadedAt": "2026-04-15",
+      "uploadedBy": "Engenharia"
+    },
+    {
+      "id": 2,
+      "fileName": "Documento de análise de impacto",
+      "uploadedAt": "2026-04-15",
+      "uploadedBy": "Engenharia"
+    },
+    {
+      "id": 3,
+      "fileName": "Aprovação formal registrada",
+      "uploadedAt": "2026-04-15",
+      "uploadedBy": "Responsável Técnico"
+    }
+  ]
+}

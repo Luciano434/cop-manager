@@ -1,0 +1,600 @@
+{
+  "metadata": {
+    "code": "PR-01",
+    "title": "Controle de Dados de Projeto e Configuração",
+    "revision": "R00",
+    "status": "Aprovado",
+    "createdAt": "2026-04-11",
+    "masterDocument": {
+      "type": "docx",
+      "fileName": "PR-01_R00.docx",
+      "path": "/docs/masters/PR-01_R00.docx"
+    },
+    "masterPdf": {
+      "type": "pdf",
+      "fileName": "PR-01_R00.pdf",
+      "path": "/docs/masters/PR-01_R00.pdf"
+    },
+    "approvedBy": [
+      {
+        "name": "Dilson Tsurumaki",
+        "area": "Engenharia"
+      }
+    ],
+    "preparedBy": [
+      {
+        "name": "Gilson Xavier de Moura",
+        "area": "Gestor da Qualidade"
+      }
+    ]
+  },
+  "objective": "Estabelecer o processo operacional para criação, análise, aprovação, identificação, distribuição, atualização, proteção, retenção, recuperação e auditoria dos dados de projeto e de configuração da TECPLAS, assegurando que somente dados aprovados, vigentes e rastreáveis sejam utilizados na engenharia, produção, inspeção, ensaio, liberação e suporte de artigos aeronáuticos, bem como garantir o controle dos registros de artigos OTP/CPAA e da categorização de peças.",
+  "application": "Este procedimento aplica-se a todos os dados técnicos e registros que definem ou suportam a configuração aprovada de artigos aeronáuticos desenvolvidos, fabricados, inspecionados ou controlados pela TECPLAS, incluindo desenhos, especificações, listas de materiais, listas de peças, roteiros e instruções de fabricação, planos de inspeção e ensaio, relatórios técnicos, documentos de qualificação, documentos de instalação, ICA, quando aplicável, registros de artigos OTP/CPAA, listas de categorização de peças e históricos de alteração de projeto e configuração. Aplica-se aos meios eletrônicos e físicos utilizados pela Engenharia, Qualidade, Produção, Suprimentos, Inspeção, Logística Técnica e demais áreas que utilizem dados de projeto.",
+  "references": [
+    "RBAC 21, incluindo aplicabilidade às Subpartes G, K e O",
+    "IS 21-006",
+    "IS 21-005",
+    "F-300-28",
+    "Procedimento corporativo de controle de documentos e registros do SGQ",
+    "Procedimento de controle de alteração de projeto",
+    "Procedimento de controle de produto não conforme",
+    "Procedimento de auditoria interna",
+    "Procedimento de treinamento e competência"
+  ],
+  "definitions": [
+    {
+      "term": "LMDT – Lista Mestra de Documentos Técnicos",
+      "description": "Registro controlado que relaciona todos os documentos que definem a configuração aprovada de um artigo, conjunto ou família de artigos."
+    },
+    {
+      "term": "LMPC – Lista Mestra de Peças Categorizadas",
+      "description": "Registro controlado que identifica a criticidade das peças, sua justificativa técnica, revisão vigente e controles associados."
+    },
+    {
+      "term": "Registro de Artigos OTP/CPAA",
+      "description": "Registro controlado dos artigos aprovados segundo OTP/CPAA utilizados, incorporados ou referenciados no projeto."
+    },
+    {
+      "term": "Sistema Oficial de Controle Documental",
+      "description": "Sistema eletrônico oficialmente designado pela TECPLAS para controle dos dados de projeto e configuração, administrado pelo Controle de Documentos em conjunto com a TI, com os seguintes recursos mínimos: controle de revisão, histórico de alterações, trilha de auditoria, perfil de acesso, bloqueio de edição após aprovação, backup, recuperação de arquivos e segregação entre documento vigente e obsoleto."
+    },
+    {
+      "term": "Documento Vigente",
+      "description": "Documento liberado para uso operacional, identificado com código, título, revisão, data, aprovadores e status “Liberado para Uso”."
+    },
+    {
+      "term": "Documento Obsoleto",
+      "description": "Documento substituído ou cancelado, retirado do uso operacional e mantido apenas para histórico rastreável."
+    },
+    {
+      "term": "Revisão crítica",
+      "description": "Revisão que impacta fabricação, inspeção, ensaio, rastreabilidade, instalação, artigo OTP/CPAA, criticidade de peça, disposição de estoque ou produto já entregue."
+    }
+  ],
+  "responsibilities": [
+    {
+      "role": "Gestor Responsável Pelo Processo",
+      "items": [
+        "aprovar este procedimento",
+        "assegurar recursos, sistema e pessoal para sua execução",
+        "aprovar decisões de implantação quando houver impacto crítico regulatório ou organizacional"
+      ]
+    },
+    {
+      "role": "Engenharia",
+      "items": [
+        "elaborar e revisar os dados de projeto",
+        "montar e manter a LMDT",
+        "classificar e revisar a criticidade das peças na LMPC",
+        "cadastrar e revisar artigos OTP/CPAA",
+        "analisar impacto técnico das alterações",
+        "definir disposição técnica de produtos afetados por alteração documental",
+        "apresentar evidência técnica em auditoria"
+      ]
+    },
+    {
+      "role": "Qualidade",
+      "items": [
+        "executar verificação independente do processo",
+        "verificar uso de revisão vigente nos pontos de uso",
+        "registrar desvios, bloqueios e contenções",
+        "auditar a coerência entre documento, produto, lote e registro",
+        "verificar a aderência do processo aos requisitos COP e RBAC 21"
+      ]
+    },
+    {
+      "role": "Controle de Documentos",
+      "items": [
+        "cadastrar documentos no sistema oficial",
+        "controlar emissão, distribuição, revisão, recolhimento e arquivamento",
+        "garantir que apenas revisões vigentes estejam disponíveis para uso",
+        "manter listas de distribuição e histórico documental",
+        "controlar acesso a documentos obsoletos"
+      ]
+    },
+    {
+      "role": "TI ou Responsável Pelo Ambiente Eletrônico",
+      "items": [
+        "manter o sistema oficial disponível, protegido e com backup ativo",
+        "controlar perfis de acesso",
+        "preservar trilha de auditoria",
+        "executar testes de recuperação"
+      ]
+    },
+    {
+      "role": "Produção",
+      "items": [
+        "utilizar somente dados vigentes liberados",
+        "confirmar revisão documental antes do uso",
+        "interromper o processo quando identificar documento divergente, não aprovado ou obsoleto",
+        "registrar no processo produtivo a revisão aplicável"
+      ]
+    },
+    {
+      "role": "Inspeção",
+      "items": [
+        "verificar se a revisão utilizada na inspeção é a vigente",
+        "registrar a revisão do documento-base no registro de inspeção",
+        "bloquear lote ou peça quando houver divergência documental"
+      ]
+    },
+    {
+      "role": "Líder da Área Usuária",
+      "items": [
+        "garantir substituição de documentos revisados em seu ponto de uso",
+        "assegurar recolhimento de cópias obsoletas",
+        "liberar uso de revisão crítica somente após comunicação ou treinamento formal, quando aplicável"
+      ]
+    }
+  ],
+  "process": [
+    {
+      "step": "6.1",
+      "title": "Abertura do dossiê técnico e cadastro inicial",
+      "description": "Abertura formal do dossiê técnico do artigo, componente, conjunto ou alteração de projeto, com cadastro inicial e emissão da LMDT.",
+      "activities": [
+        "Quando um novo artigo, componente, conjunto ou alteração de projeto é iniciado, o Engenheiro responsável abre o dossiê técnico no Sistema Oficial de Controle Documental.",
+        "O cadastro inicial deve conter, no mínimo: número do projeto, part number, descrição do item, aplicação aeronáutica, responsável técnico, base regulatória aplicável, documentos de referência de partida e status do projeto.",
+        "O Engenheiro cria ou consolida os documentos técnicos aplicáveis ao item.",
+        "Cada documento é cadastrado na LMDT com: código, título, revisão, data, origem, localização eletrônica, vínculo com artigo, tipo de aprovação e retenção aplicável.",
+        "O Controle de Documentos verifica se o cadastro foi feito no sistema oficial correto, se a codificação está conforme o padrão e se não há duplicidade documental.",
+        "O registro desta etapa é a abertura formal do dossiê técnico e a emissão inicial da LMDT."
+      ],
+      "records": [
+        "dossiê técnico",
+        "LMDT inicial",
+        "cadastro de documentos"
+      ],
+      "system": "Sistema Oficial de Controle Documental",
+      "approval": "Engenharia",
+      "verification": "Controle de Documentos"
+    },
+    {
+      "step": "6.2",
+      "title": "Elaboração, análise técnica e aprovação",
+      "description": "Elaboração do documento técnico, revisão técnica, verificação independente quando aplicável e aprovação formal controlada.",
+      "activities": [
+        "O Engenheiro elabora o documento técnico aplicável diretamente no sistema oficial ou em modelo controlado vinculado a ele.",
+        "Antes da aprovação, o Engenheiro executa auto verificação quanto a: coerência técnica, part number, revisão, interface com outros documentos e impacto em materiais, processos, inspeção e rastreabilidade.",
+        "O documento segue para revisão técnica por outro responsável designado da Engenharia, quando aplicável pela criticidade ou pela matriz interna de aprovação.",
+        "Quando o documento impactar produção, inspeção, ensaio, rastreabilidade, artigo OTP/CPAA ou criticidade de peça, a Qualidade executa verificação independente antes da liberação.",
+        "A aprovação formal ocorre no sistema oficial por assinatura eletrônica controlada ou, na impossibilidade, por assinatura física controlada com posterior registro no sistema.",
+        "Nenhum documento é liberado sem identificação completa de: código, título, revisão, data, elaborador, aprovador, status e referência regulatória ou de aprovação, quando aplicável."
+      ],
+      "records": [
+        "documento aprovado",
+        "trilha de aprovação",
+        "registro de verificação"
+      ],
+      "system": "Sistema Oficial de Controle Documental",
+      "approval": "Engenharia e Qualidade, conforme impacto",
+      "verification": "revisão técnica e verificação independente"
+    },
+    {
+      "step": "6.3",
+      "title": "Liberação para uso e atualização da configuração",
+      "description": "Liberação do documento para uso operacional, atualização da LMDT e tratamento do impacto da revisão na configuração aprovada.",
+      "activities": [
+        "Após aprovação, o Controle de Documentos altera o status do documento para “Liberado para Uso”.",
+        "Na mesma etapa, atualiza a LMDT e verifica se a nova revisão afetou: outros documentos técnicos, ordens de fabricação em aberto, registros de inspeção, estoque, produto em processo, produto já entregue, registro OTP/CPAA e LMPC.",
+        "Se houver impacto, a Engenharia deve concluir a análise de impacto antes da publicação da revisão.",
+        "A revisão somente entra em vigor após: atualização da LMDT, definição da data de vigência, emissão da notificação de revisão e definição da disposição de itens afetados, quando aplicável.",
+        "O Controle de Documentos registra a data de entrada em vigor no sistema."
+      ],
+      "records": [
+        "LMDT revisada",
+        "data de vigência",
+        "análise de impacto"
+      ],
+      "system": "Sistema Oficial de Controle Documental",
+      "approval": "Controle de Documentos publica; Engenharia aprova impacto",
+      "verification": "Qualidade confirma coerência da implantação"
+    },
+    {
+      "step": "6.4",
+      "title": "Distribuição e disponibilização aos pontos de uso",
+      "description": "Distribuição controlada do documento vigente aos pontos de uso e confirmação da implantação da revisão.",
+      "activities": [
+        "O Controle de Documentos distribui o documento liberado somente aos pontos de uso constantes da Lista de Distribuição.",
+        "A distribuição padrão deve ser eletrônica, por acesso controlado no sistema oficial.",
+        "Cópia impressa somente pode ser usada quando exigida operacionalmente e deve conter identificação de “Cópia Controlada”.",
+        "Para cada nova revisão, o Controle de Documentos emite notificação formal contendo: documento alterado, revisão anterior, revisão vigente, data de vigência, áreas impactadas e necessidade de treinamento ou comunicação.",
+        "O líder da área usuária confirma a substituição do documento no ponto de uso.",
+        "A Produção e a Inspeção verificam, antes do uso, se a revisão disponível corresponde à revisão vigente registrada na LMDT."
+      ],
+      "records": [
+        "lista de distribuição",
+        "notificação de revisão",
+        "confirmação de recebimento e implantação"
+      ],
+      "system": "sistema oficial, e-mail controlado ou fluxo interno aprovado",
+      "approval": "Controle de Documentos",
+      "verification": "líder da área e Qualidade"
+    },
+    {
+      "step": "6.5",
+      "title": "Controle de documentos obsoletos",
+      "description": "Bloqueio, recolhimento, segregação, arquivamento e recuperação controlada de documentos obsoletos.",
+      "activities": [
+        "Quando uma nova revisão entra em vigor, o Controle de Documentos bloqueia a revisão anterior no ambiente de uso.",
+        "O líder da área recolhe cópias impressas obsoletas em até 1 dia útil após a vigência da nova revisão.",
+        "O documento obsoleto é descartado de forma controlada ou arquivado com marcação “OBSOLETO – NÃO USAR”.",
+        "Arquivos eletrônicos obsoletos são transferidos para área histórica segregada, com acesso restrito.",
+        "A recuperação de documento obsoleto somente pode ser feita por Engenharia, Qualidade ou Controle de Documentos, mediante registro da solicitação e finalidade."
+      ],
+      "records": [
+        "recolhimento de obsoleto",
+        "histórico de obsolescência",
+        "log de recuperação"
+      ],
+      "system": "sistema oficial e arquivo histórico controlado",
+      "approval": "Controle de Documentos",
+      "verification": "Qualidade"
+    },
+    {
+      "step": "6.6",
+      "title": "Controle do registro de artigos OTP/CPAA",
+      "description": "Cadastro, validação e controle dos artigos OTP/CPAA utilizados ou referenciados no projeto.",
+      "activities": [
+        "Sempre que o projeto utilizar ou referenciar artigo OTP/CPAA, o Engenheiro deve cadastrá-lo no Registro de Artigos OTP/CPAA antes da liberação do projeto para fabricação.",
+        "O cadastro deve conter: identificação do artigo, fabricante, part number, norma aplicável, revisão, documento comprobatório, aplicação no projeto, limitações de uso/instalação e localização do documento de suporte.",
+        "Antes da aprovação, o Engenheiro executa checklist de validação contendo, no mínimo: confirmação da norma OTP/CPAA aplicável, verificação do fabricante, coerência do part number, conferência da revisão, elegibilidade de uso no contexto do projeto, limitações e restrições e vínculo com o projeto TECPLAS.",
+        "A Qualidade executa verificação independente por amostragem ou obrigatória quando o artigo impactar requisito crítico.",
+        "Nenhum artigo OTP/CPAA é liberado para uso sem registro vigente e checklist concluído."
+      ],
+      "records": [
+        "Registro de Artigos OTP/CPAA",
+        "checklist de validação",
+        "verificação da Qualidade"
+      ],
+      "system": "sistema oficial ou planilha controlada vinculada ao sistema oficial",
+      "approval": "Engenharia",
+      "verification": "Qualidade"
+    },
+    {
+      "step": "6.7",
+      "title": "Categorização de peças por criticidade",
+      "description": "Classificação de criticidade das peças, vinculação dos controles requeridos e reavaliação sempre que houver alteração relevante.",
+      "activities": [
+        "A Engenharia classifica cada peça conforme matriz técnica padronizada de criticidade definida pela TECPLAS.",
+        "A matriz deve considerar, no mínimo: efeito de falha, impacto na aeronavegabilidade, requisito regulamentar, necessidade de rastreabilidade reforçada, processo especial, impacto funcional, severidade operacional e necessidade de inspeção reforçada.",
+        "A classificação é registrada na LMPC com: part number, descrição, desenho/revisão, categoria, justificativa técnica, data e responsável.",
+        "Quando a categorização gerar requisito adicional, a Engenharia deve vincular o controle exigido, como: fornecedor qualificado, rastreabilidade ampliada, retenção ampliada, validação de processo, inspeção adicional e marcação especial.",
+        "A Qualidade verifica a coerência entre a categoria definida e os controles aplicados.",
+        "Sempre que houver alteração de projeto, material, processo, instalação, requisito regulatório ou ocorrência relevante em serviço, a peça deve ser reavaliada antes da nova liberação."
+      ],
+      "records": [
+        "LMPC",
+        "justificativa técnica",
+        "histórico de reclassificação"
+      ],
+      "system": "sistema oficial ou banco de dados controlado vinculado",
+      "approval": "Engenharia",
+      "verification": "Qualidade"
+    },
+    {
+      "step": "6.8",
+      "title": "Controle de alterações de projeto e configuração",
+      "description": "Tratamento formal das alterações de projeto, com análise de impacto, definição de disposição e atualização simultânea dos registros afetados.",
+      "activities": [
+        "Toda alteração de projeto deve ser iniciada por solicitação formal de alteração.",
+        "A Engenharia analisa o impacto da alteração sobre: configuração aprovada, documentos técnicos, materiais e processos, inspeção e ensaio, ordens de fabricação em aberto, estoque, produto em processo, produto já entregue, artigos OTP/CPAA e LMPC.",
+        "A análise deve definir a disposição dos itens afetados: manter como está, retrabalhar, reinspecionar, segregar ou submeter à decisão técnica adicional.",
+        "A alteração só pode ser aprovada após revisão dos documentos afetados e atualização simultânea de: LMDT, LMPC, quando aplicável, e Registro de Artigos OTP/CPAA, quando aplicável.",
+        "Quando a alteração impactar requisito de aprovação regulatória, a Engenharia deve registrar a submissão e o retorno regulatório aplicável antes da implantação definitiva.",
+        "A ordem de fabricação e o registro de inspeção devem conter a revisão documental aplicável, assegurando rastreabilidade entre documento, lote e produto."
+      ],
+      "records": [
+        "solicitação de alteração",
+        "análise de impacto",
+        "atualização de listas mestras",
+        "disposição de itens afetados"
+      ],
+      "system": "sistema oficial, formulário controlado, SEI quando aplicável",
+      "approval": "Engenharia e Qualidade",
+      "verification": "Qualidade"
+    },
+    {
+      "step": "6.9",
+      "title": "Verificação independente da Qualidade",
+      "description": "Verificação formal e independente do processo, com frequência definida e tratamento de desvios.",
+      "activities": [
+        "A Qualidade executa verificação independente formal do processo utilizando formulário padrão interno.",
+        "A verificação deve confirmar, no mínimo: documento vigente no ponto de uso, coerência com a LMDT, inexistência de documento obsoleto em uso, vinculação da revisão à ordem de fabricação, vinculação da revisão ao registro de inspeção, coerência da LMPC, quando aplicável, e coerência do Registro OTP/CPAA, quando aplicável.",
+        "A frequência mínima é: mensal, por amostragem, nos pontos de uso de Produção e Inspeção; trimestral, para verificação cruzada entre LMDT, LMPC e Registro OTP/CPAA; e sempre que houver revisão crítica.",
+        "Quando houver desvio, a Qualidade bloqueia o uso, registra a ocorrência, define a contenção imediata e aciona Engenharia para avaliação de impacto.",
+        "O resultado da verificação deve permanecer arquivado como evidência objetiva de auditoria."
+      ],
+      "records": [
+        "formulário de verificação independente",
+        "bloqueio",
+        "contenção",
+        "ação corretiva quando aplicável"
+      ],
+      "system": "formulário controlado do SGQ",
+      "approval": "Qualidade",
+      "verification": "independente da emissão documental"
+    },
+    {
+      "step": "6.10",
+      "title": "Backup, retenção e recuperação",
+      "description": "Preservação dos dados e registros por meio de backup, testes de recuperação, tabela de retenção e descarte autorizado.",
+      "activities": [
+        "TI executa backup diário do sistema oficial.",
+        "TI executa teste trimestral de recuperação de arquivos críticos.",
+        "O Controle de Documentos mantém tabela de retenção por tipo documental.",
+        "Os registros deste procedimento devem ser preservados pelo prazo definido no SGQ e na regulamentação aplicável.",
+        "O descarte ao final da retenção somente pode ocorrer com autorização formal da Qualidade e registro do descarte."
+      ],
+      "records": [
+        "plano de backup",
+        "evidência de backup",
+        "teste de recuperação",
+        "tabela de retenção",
+        "descarte autorizado"
+      ],
+      "system": "sistema oficial e arquivo controlado",
+      "approval": "TI e Qualidade",
+      "verification": "auditoria interna"
+    },
+    {
+      "step": "6.11",
+      "title": "Treinamento e comunicação de revisão crítica",
+      "description": "Comunicação ou treinamento formal obrigatório antes da implantação de revisões críticas.",
+      "activities": [
+        "Quando a revisão impactar fabricação, inspeção, ensaio, rastreabilidade, instalação, criticidade ou disposição de produto, a revisão é classificada como crítica.",
+        "Nesses casos, o líder da área afetada só pode liberar o uso após: comunicação formal registrada ou treinamento formal registrado.",
+        "O registro deve identificar: documento revisado, revisão, áreas impactadas, participantes, data e responsável pela comunicação ou treinamento.",
+        "Sem esse registro, a revisão crítica não pode ser implantada no ponto de uso."
+      ],
+      "records": [
+        "registro de comunicação",
+        "lista de presença",
+        "evidência de treinamento"
+      ],
+      "system": "SGQ e sistema de treinamento",
+      "approval": "líder da área e Qualidade, quando aplicável",
+      "verification": "auditoria interna e Qualidade"
+    },
+    {
+      "step": "6.12",
+      "title": "Acesso do auditor à evidência",
+      "description": "Disponibilização estruturada das evidências objetivas de auditoria e definição do papel de cada área na apresentação.",
+      "activities": [
+        "Quando solicitado em auditoria, a evidência deve ser apresentada na seguinte sequência: LMDT vigente do item auditado, documento técnico aprovado, histórico de revisão, lista de distribuição e notificação, evidência de recolhimento de obsoletos, ordem de fabricação com revisão aplicável, registro de inspeção com revisão aplicável, LMPC, se aplicável, Registro de Artigos OTP/CPAA, se aplicável, análise de alteração, se aplicável, verificação independente da Qualidade e evidência de backup, retenção ou recuperação, quando requerida.",
+        "A Engenharia apresenta a lógica técnica da configuração.",
+        "A Qualidade apresenta a verificação independente e o controle operacional.",
+        "O Controle de Documentos apresenta a rastreabilidade documental.",
+        "A TI apresenta a evidência de controle eletrônico, backup e recuperação."
+      ],
+      "records": [
+        "LMDT vigente",
+        "documento técnico aprovado",
+        "histórico de revisão",
+        "lista de distribuição e notificação",
+        "evidência de recolhimento de obsoletos",
+        "ordem de fabricação com revisão aplicável",
+        "registro de inspeção com revisão aplicável",
+        "LMPC, se aplicável",
+        "Registro de Artigos OTP/CPAA, se aplicável",
+        "análise de alteração, se aplicável",
+        "verificação independente da Qualidade",
+        "evidência de backup, retenção ou recuperação, quando requerida"
+      ],
+      "system": "Sistema Oficial de Controle Documental, SGQ e sistemas associados",
+      "approval": "não aplicável",
+      "verification": "auditoria"
+    }
+  ],
+  "criteria": [
+    "Nenhum documento pode ser usado sem aprovação e identificação completa.",
+    "Nenhuma revisão entra em uso sem atualização da LMDT.",
+    "Nenhum artigo OTP/CPAA entra em uso sem registro e checklist de validação.",
+    "Nenhuma peça categorizada pode mudar de criticidade sem atualização da LMPC.",
+    "Nenhuma cópia obsoleta pode permanecer no ponto de uso após a vigência da nova revisão.",
+    "Toda ordem de fabricação e todo registro de inspeção devem conter a revisão aplicável.",
+    "Toda revisão crítica exige comunicação ou treinamento formal antes da implantação.",
+    "Toda verificação independente deve ser registrada formalmente."
+  ],
+  "evidences": [
+    "dossiê técnico do artigo",
+    "LMDT vigente",
+    "documentos técnicos aprovados",
+    "histórico de revisão",
+    "lista de distribuição",
+    "notificação de revisão",
+    "confirmação de implantação",
+    "recolhimento de obsoletos",
+    "log de recuperação de documento obsoleto",
+    "Registro de Artigos OTP/CPAA",
+    "checklist de validação OTP/CPAA",
+    "LMPC atualizada",
+    "justificativa técnica de categorização",
+    "solicitação e análise de alteração",
+    "ordem de fabricação com revisão aplicável",
+    "registro de inspeção com revisão aplicável",
+    "verificação independente da Qualidade",
+    "bloqueios e contenções",
+    "evidência de backup",
+    "teste de recuperação",
+    "tabela de retenção",
+    "descarte autorizado, quando aplicável",
+    "registros de comunicação ou treinamento de revisão crítica",
+    "registros de não conformidade e ação corretiva associados ao processo"
+  ],
+  "copMatrix": [
+    {
+      "requirement": "1.A.1",
+      "description": "Controle, armazenamento, manutenção e proteção dos dados técnicos",
+      "items": [
+        "6.1",
+        "6.5",
+        "6.10"
+      ]
+    },
+    {
+      "requirement": "1.A.1",
+      "description": "Identificação do documento e do status de aprovação",
+      "items": [
+        "6.2"
+      ]
+    },
+    {
+      "requirement": "1.A.1",
+      "description": "Lista dos documentos que definem a configuração aprovada",
+      "items": [
+        "4.1",
+        "6.1",
+        "6.3"
+      ]
+    },
+    {
+      "requirement": "1.A.2",
+      "description": "Emissão, aprovação, alteração e distribuição controlada",
+      "items": [
+        "6.2",
+        "6.3",
+        "6.4"
+      ]
+    },
+    {
+      "requirement": "1.A.2(1)",
+      "description": "Uso de dados atualizados, corretos e aprovados",
+      "items": [
+        "6.4",
+        "6.9"
+      ]
+    },
+    {
+      "requirement": "1.A.2(2)",
+      "description": "Controle de emissão e recuperação de obsoletos",
+      "items": [
+        "6.5"
+      ]
+    },
+    {
+      "requirement": "1.A.2(3)",
+      "description": "Métodos para notificar mudanças",
+      "items": [
+        "6.4",
+        "6.11"
+      ]
+    },
+    {
+      "requirement": "1.A.2(4)",
+      "description": "Verificação de uso de dados aprovados na fabricação",
+      "items": [
+        "6.9"
+      ]
+    },
+    {
+      "requirement": "1.A.2(5)",
+      "description": "Lista de distribuição atualizada",
+      "items": [
+        "6.4"
+      ]
+    },
+    {
+      "requirement": "1.A.2(6)",
+      "description": "Arquivo completo e atualizado dos dados técnicos",
+      "items": [
+        "6.1",
+        "6.10"
+      ]
+    },
+    {
+      "requirement": "1.A.2(7)",
+      "description": "Controle adequado de dados eletrônicos",
+      "items": [
+        "4.4",
+        "6.10"
+      ]
+    },
+    {
+      "requirement": "1.A.3",
+      "description": "Registro de artigos OTP/CPAA",
+      "items": [
+        "6.6"
+      ]
+    },
+    {
+      "requirement": "1.A.3(2)",
+      "description": "Controle de atualização desses registros",
+      "items": [
+        "6.6",
+        "6.8"
+      ]
+    },
+    {
+      "requirement": "1.A.3(3)",
+      "description": "Disponibilização às pessoas autorizadas",
+      "items": [
+        "6.6",
+        "6.12"
+      ]
+    },
+    {
+      "requirement": "1.B.1",
+      "description": "Registro da categorização de peças",
+      "items": [
+        "6.7"
+      ]
+    },
+    {
+      "requirement": "1.B.1(2)",
+      "description": "Controle de atualização da categorização",
+      "items": [
+        "6.7",
+        "6.8"
+      ]
+    },
+    {
+      "requirement": "1.B.1(3)",
+      "description": "Disponibilização às pessoas autorizadas",
+      "items": [
+        "6.7",
+        "6.12"
+      ]
+    }
+  ],
+  "indicators": [
+    "100% da amostra mensal de pontos de uso estiver com revisão vigente.",
+    "100% das revisões críticas implantadas tiverem comunicação ou treinamento registrado.",
+    "100% dos artigos OTP/CPAA amostrados tiverem checklist de validação concluído.",
+    "100% das peças críticas amostradas constarem corretamente na LMPC.",
+    "Zero ocorrência de documento obsoleto em uso operacional.",
+    "100% dos testes trimestrais de recuperação forem concluídos com sucesso."
+  ],
+  "sgqIntegration": [
+    "controle de documentos e registros",
+    "controle de alterações de projeto",
+    "controle de produção",
+    "inspeção e ensaio",
+    "controle de fornecedores",
+    "controle de produto não conforme",
+    "ação corretiva",
+    "auditoria interna",
+    "treinamento e competência",
+    "gestão de TI e segurança da informação"
+  ]
+}
