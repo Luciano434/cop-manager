@@ -33,6 +33,7 @@ import {
   normalizeProcedureCode,
   getCurrentUser,
 } from "@/lib/utils-cop";
+import { trpc } from "@/lib/trpc";
 
 type ProcedureStatus =
   | "nao_iniciado"
@@ -1287,7 +1288,64 @@ export default function ProcedureDetail() {
   const procedureCodeRaw = codeMatch ? decodeURIComponent(codeMatch[1]) : "CPR-01";
   const procedureCode = normalizeProcedureCode(procedureCodeRaw);
 
+  const { data: dbProcedure, isLoading: loadingProcedure } = trpc.procedures.getByCode.useQuery(
+    { code: procedureCode },
+    { retry: false }
+  );
+  const updateProcedureMutation = trpc.procedures.update.useMutation();
+  const deleteProcedureMutation = trpc.procedures.delete.useMutation();
+  const utils = trpc.useUtils();
+
+  const dbProcedureAsImported = useMemo((): ImportedProcedure | null => {
+    if (!dbProcedure) return null;
+
+    let sections: ImportedSection[] = [];
+    try {
+      const raw = localStorage.getItem(`sections:${procedureCode}`);
+      if (raw) {
+        const parsed: any[] = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          sections = parsed.map((s: any) => ({
+            number: String(s.number ?? ""),
+            item: String(s.number ?? ""),
+            title: String(s.title ?? ""),
+            content: s.content ?? "",
+            subitems: Array.isArray(s.subitems)
+              ? s.subitems.map((sub: any) => ({
+                  item: sub.item ?? "",
+                  title: sub.title ?? "",
+                  content: sub.content ?? "",
+                }))
+              : [],
+            mode: s.mode === "table" ? "table" : ("text" as "text" | "table"),
+            table: s.table ?? undefined,
+          }));
+        }
+      }
+    } catch { /* ignore */ }
+
+    const dbDate = (d: any): string => {
+      if (!d) return new Date().toISOString().slice(0, 10);
+      if (d instanceof Date) return d.toISOString().slice(0, 10);
+      return String(d).slice(0, 10);
+    };
+
+    return {
+      id: dbProcedure.id,
+      code: dbProcedure.code,
+      name: dbProcedure.name,
+      description: dbProcedure.description ?? undefined,
+      status: dbProcedure.status,
+      responsible: dbProcedure.responsible ?? undefined,
+      createdAt: dbDate(dbProcedure.createdAt),
+      updatedAt: dbDate(dbProcedure.updatedAt),
+      sections,
+      revision: "00",
+    };
+  }, [dbProcedure, procedureCode]);
+
   const storedProcedure = useMemo(() => {
+    if (dbProcedureAsImported) return null;
     try {
       const stored = localStorage.getItem("customProcedures");
       if (!stored) return null;
@@ -1304,15 +1362,17 @@ export default function ProcedureDetail() {
     } catch {
       return null;
     }
-  }, [procedureCode, storageVersion]);
+  }, [procedureCode, storageVersion, dbProcedureAsImported]);
 
-  const baseProcedureSource: ProcedureData | null =
-    proceduresData[procedureCodeRaw] || proceduresData[procedureCode] || null;
+  const baseProcedureSource: ProcedureData | null = dbProcedureAsImported
+    ? null
+    : proceduresData[procedureCodeRaw] || proceduresData[procedureCode] || null;
 
   const rawProcedureSource: ProcedureData | null =
-    storedProcedure || baseProcedureSource || null;
+    (dbProcedureAsImported as ProcedureData | null) || storedProcedure || baseProcedureSource || null;
 
   useEffect(() => {
+    if (dbProcedureAsImported) return;
     if (!baseProcedureSource && !storedProcedure) return;
 
     try {
@@ -1521,6 +1581,7 @@ if (
   }, [procedureCode, currentStatus, currentRevision, baseProcedureView]);
 
   useEffect(() => {
+    if (dbProcedureAsImported) return;
     if (!rawProcedure || !baseProcedureView || !isSelectedLatestRevision) return;
 
     const nextStatus = normalizeStatus(currentStatus ?? baseProcedureView.status);
@@ -1604,6 +1665,7 @@ if (
   }, [baseProcedureView, currentStatus, currentRevision, procedureCode]);
 
 useEffect(() => {
+  if (dbProcedureAsImported) return;
   if (!procedureView) return;
 
   const evidences = readEvidences();
@@ -1661,6 +1723,10 @@ const revision = `R${normalizeRevision(procedureView.revision)}`;
     );
   }, [procedureView]);
 
+  if (loadingProcedure) {
+    return <div className="p-6">Carregando procedimento...</div>;
+  }
+
   if (!rawProcedure || !procedureView) {
     return (
       <div className="space-y-6">
@@ -1682,7 +1748,7 @@ const revision = `R${normalizeRevision(procedureView.revision)}`;
   }
 
 const normalizedStatus = normalizeStatus(procedureView.status);
-const isApproved = normalizedStatus === "aprovado";
+const isApproved = normalizedStatus === "aprovado" || normalizedStatus === "implementado";
 const isBlocked = normalizedStatus === "bloqueado";
 const isCanceled = normalizedStatus === "cancelado";
 
@@ -1741,7 +1807,7 @@ const hasMasterPdf = Boolean(procedureView.masterPdf?.path);
     );
   };
 
-const handleDeleteProcedure = () => {
+const handleDeleteProcedure = async () => {
   const code = String(procedureView.code || "").trim().toUpperCase();
 
   if (!code) return;
@@ -1751,6 +1817,20 @@ const handleDeleteProcedure = () => {
   );
 
   if (!confirmDelete) return;
+
+  if (dbProcedure) {
+    try {
+      await deleteProcedureMutation.mutateAsync({ id: dbProcedure.id });
+      await utils.procedures.list.invalidate();
+      localStorage.removeItem(`sections:${procedureCode}`);
+      localStorage.removeItem(`procedure-${code}`);
+      alert(`${code} excluído com sucesso.`);
+      setLocation("/procedimentos");
+    } catch (err: any) {
+      alert(err?.message || "Erro ao excluir o procedimento.");
+    }
+    return;
+  }
 
   localStorage.removeItem(`procedure-${code}`);
 
@@ -1784,7 +1864,7 @@ const handleDeleteProcedure = () => {
 
   alert(`${code} excluído com sucesso.`);
   setLocation("/procedimentos");
-};  
+};
 
   const handleExportPdf = () => {
     if (!isApproved) {
@@ -1955,12 +2035,15 @@ const handleDeleteProcedure = () => {
               variant="outline"
               onClick={handleNewRevision}
               disabled={
+  !!dbProcedure ||
   !isApproved ||
   !isSelectedLatestRevision ||
   !["ADMIN", "QUALIDADE"].includes(currentUser.role)
 }
               title={
-                !isSelectedLatestRevision
+                !!dbProcedure
+                  ? "Revisões não disponíveis para procedimentos cadastrados no banco de dados"
+                  : !isSelectedLatestRevision
                   ? "Disponível apenas na revisão atual"
                   : isApproved
                   ? "Criar nova revisão"
@@ -2058,6 +2141,13 @@ disabled={!["ADMIN", "QUALIDADE"].includes(currentUser.role)}
   !["ADMIN", "QUALIDADE"].includes(currentUser.role)
 }
                 onChange={(e) => {
+  if (dbProcedure) {
+    const dbStatus = e.target.value as "nao_iniciado" | "em_desenvolvimento" | "implementado";
+    setCurrentStatus(dbStatus);
+    updateProcedureMutation.mutate({ id: dbProcedure.id, status: dbStatus });
+    return;
+  }
+
   const nextStatus = normalizeStatus(e.target.value);
   setCurrentStatus(nextStatus);
 
@@ -2116,11 +2206,21 @@ disabled={!["ADMIN", "QUALIDADE"].includes(currentUser.role)}
   }
 }}
               >
-                <option value="em_elaboracao">Em elaboração</option>
-                <option value="em_revisao">Em revisão</option>
-                <option value="aprovado">Aprovado</option>
-                <option value="bloqueado">Bloqueado</option>
-                <option value="cancelado">Cancelado</option>
+                {dbProcedure ? (
+                  <>
+                    <option value="nao_iniciado">Não iniciado</option>
+                    <option value="em_desenvolvimento">Em desenvolvimento</option>
+                    <option value="implementado">Implementado</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="em_elaboracao">Em elaboração</option>
+                    <option value="em_revisao">Em revisão</option>
+                    <option value="aprovado">Aprovado</option>
+                    <option value="bloqueado">Bloqueado</option>
+                    <option value="cancelado">Cancelado</option>
+                  </>
+                )}
               </select>
             </div>
 

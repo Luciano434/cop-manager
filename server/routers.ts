@@ -201,6 +201,7 @@ export const appRouter = router({
         description: z.string().optional(),
         status: z.enum(["nao_iniciado", "em_desenvolvimento", "implementado"]),
         responsible: z.string().optional(),
+        family: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         return createProcedure({
@@ -217,6 +218,7 @@ export const appRouter = router({
         description: z.string().optional(),
         status: z.enum(["nao_iniciado", "em_desenvolvimento", "implementado"]).optional(),
         responsible: z.string().optional(),
+        family: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...data } = input;

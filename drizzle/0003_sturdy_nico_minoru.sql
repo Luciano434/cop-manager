@@ -1,0 +1,1 @@
+ALTER TABLE `procedures` ADD `family` varchar(100);

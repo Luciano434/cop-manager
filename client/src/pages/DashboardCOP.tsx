@@ -1,7 +1,6 @@
 import { normalizeProcedureCode } from "@/lib/utils-cop";
 import { useMemo } from "react";
-import { baseProcedures } from "@/data/procedures/baseProcedures";
-import { mapBaseProcedureToCPR } from "@/domain/cpr";
+import { trpc } from "@/lib/trpc";
 import {
   AlertCircle,
   BarChart3,
@@ -17,25 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 
-type EvidenceStatusRaw = "OK" | "NOK" | "PARCIAL" | "PENDENTE" | "NA";
-
 type DashboardStatus = "OK" | "NOK" | "Pendente";
-
-type Evidencia = {
-  id?: number;
-  cprCode?: string;
-  procedureCode?: string;
-  requirementId?: string;
-  status?: EvidenceStatusRaw | string;
-  evidences?: string[];
-  registros?: string[];
-  responsible?: string;
-  responsavel?: string;
-  updatedAt?: string;
-  dataVerificacao?: string;
-  observacao?: string;
-  observation?: string;
-};
 
 interface EvidenceItem {
   id: string;
@@ -54,11 +35,6 @@ interface EvidenceItem {
   dataVerificacao: string;
   observacao: string;
   sourceKey: string;
-}
-
-interface LoadedSource {
-  key: string;
-  count: number;
 }
 
 interface FamilyStats {
@@ -81,381 +57,40 @@ interface ProcedureStats {
   conformityPercentage: number;
 }
 
-interface ReadEvidenceResult {
-  evidenceItems: EvidenceItem[];
-  sources: LoadedSource[];
-  proceduresCount: number;
-}
-
 function normalizeText(value: unknown) {
   return String(value || "")
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[̀-ͯ]/g, "");
 }
 
 function normalizeFamily(value: unknown): string {
   const normalized = normalizeText(value);
 
   if (!normalized) return "A classificar";
-
   if (normalized.includes("projeto")) return "Controle de Projeto";
-
   if (normalized.includes("material")) return "Controle de Materiais";
-
   if (normalized.includes("producao")) return "Controle de Produção";
-
   if (normalized.includes("liberacao")) return "Liberação Final";
-
-  if (normalized.includes("aeronavegabilidade")) {
-    return "Aeronavegabilidade Continuada";
-  }
-
-  if (
-    normalized.includes("gestao") ||
-    normalized.includes("organizacional")
-  ) {
-    return "Gestão Organizacional";
-  }
+  if (normalized.includes("aeronavegabilidade")) return "Aeronavegabilidade Continuada";
+  if (normalized.includes("gestao") || normalized.includes("organizacional")) return "Gestão Organizacional";
 
   return "A classificar";
 }
 
-function normalizeDashboardStatus(value: unknown): DashboardStatus {
-  const normalized = normalizeText(value);
-
-  if (normalized === "ok") return "OK";
-
-  if (
-    normalized === "nok" ||
-    normalized === "nao ok" ||
-    normalized === "não ok" ||
-    normalized === "reprovado" ||
-    normalized === "nao conforme" ||
-    normalized === "não conforme"
-  ) {
-    return "NOK";
-  }
-
-  return "Pendente";
-}
-
-function safeJsonParse<T>(raw: string | null, fallback: T): T {
-  if (!raw) return fallback;
-
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function isProcedureLike(item: any) {
-  return (
-    item &&
-    typeof item === "object" &&
-    (item.code || item.name || item.title) &&
-    (Array.isArray(item.structure) || Array.isArray(item.sections))
-  );
-}
-
-function getProcedureName(proc: any) {
-  return String(proc?.name || proc?.title || proc?.description || "").trim();
-}
-
-function getProcedureSourceKey(proc: any) {
-  return String(proc?.__sourceKey || proc?.sourceKey || "baseProcedures");
-}
-
-function getAllProceduresFromLocalStorage(): {
-  procedures: any[];
-  sources: LoadedSource[];
-} {
-  const proceduresByCode = new Map<string, any>();
-  const sourcesMap = new Map<string, number>();
-
-  const mappedBaseProcedures = Array.isArray(baseProcedures)
-    ? baseProcedures.map((proc: any) => {
-        try {
-          return {
-            ...mapBaseProcedureToCPR(proc),
-            __sourceKey: "baseProcedures",
-          };
-        } catch {
-          return {
-            ...proc,
-            code: normalizeProcedureCode(String(proc?.code || "")),
-            __sourceKey: "baseProcedures",
-          };
-        }
-      })
-    : [];
-
-  mappedBaseProcedures.forEach((proc: any) => {
-    const code = normalizeProcedureCode(String(proc?.code || ""));
-
-    if (!code) return;
-
-    proceduresByCode.set(code, {
-      ...proc,
-      code,
-      __sourceKey: "baseProcedures",
-    });
-  });
-
-  if (mappedBaseProcedures.length > 0) {
-    sourcesMap.set("baseProcedures", mappedBaseProcedures.length);
-  }
-
-  const preferredKeys = [
-    "customProcedures",
-    "procedures",
-    "cprProcedures",
-    "tecplasProcedures",
-    "importedProcedures",
-  ];
-
-  preferredKeys.forEach((key) => {
-    const raw = localStorage.getItem(key);
-    const parsed = safeJsonParse<any>(raw, null);
-
-    const found = extractProceduresFromParsedValue(parsed);
-
-    if (found.length > 0) {
-      sourcesMap.set(key, (sourcesMap.get(key) || 0) + found.length);
-
-      found.forEach((proc: any) => {
-        const code = normalizeProcedureCode(String(proc?.code || ""));
-
-        if (!code) return;
-
-        proceduresByCode.set(code, {
-          ...proc,
-          code,
-          __sourceKey: key,
-        });
-      });
-    }
-  });
-
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const key = localStorage.key(i);
-
-    if (!key) continue;
-    if (preferredKeys.includes(key)) continue;
-    if (key === "evidencias") continue;
-
-    const raw = localStorage.getItem(key);
-    const parsed = safeJsonParse<any>(raw, null);
-
-    const found = extractProceduresFromParsedValue(parsed);
-
-    if (found.length === 0) continue;
-
-    sourcesMap.set(key, (sourcesMap.get(key) || 0) + found.length);
-
-    found.forEach((proc: any) => {
-      const code = normalizeProcedureCode(String(proc?.code || ""));
-
-      if (!code) return;
-
-      proceduresByCode.set(code, {
-        ...proc,
-        code,
-        __sourceKey: key,
-      });
-    });
-  }
-    return {
-    procedures: Array.from(proceduresByCode.values()).sort((a, b) =>
-      String(a.code).localeCompare(String(b.code), "pt-BR", {
-        numeric: true,
-      })
-    ),
-    sources: Array.from(sourcesMap.entries()).map(([key, count]) => ({
-      key,
-      count,
-    })),
-  };
-}
-
-function extractProceduresFromParsedValue(parsed: any): any[] {
-  if (!parsed) return [];
-
-  if (Array.isArray(parsed)) {
-    return parsed.filter(isProcedureLike);
-  }
-
-  if (typeof parsed !== "object") return [];
-
-  const possibleArrays = [
-    parsed.procedures,
-    parsed.customProcedures,
-    parsed.items,
-    parsed.data,
-    parsed.records,
-  ];
-
-  for (const value of possibleArrays) {
-    if (Array.isArray(value)) {
-      const found = value.filter(isProcedureLike);
-
-      if (found.length > 0) return found;
-    }
-  }
-
-  if (isProcedureLike(parsed)) return [parsed];
-
-  return [];
-}
-
-function getProcedureSections(proc: any): any[] {
-  if (Array.isArray(proc?.structure)) return proc.structure;
-  if (Array.isArray(proc?.sections)) return proc.sections;
-
-  return [];
-}
-
-function getSectionNumber(section: any) {
-  return String(
-    section?.item ||
-      section?.number ||
-      section?.section ||
-      section?.id ||
-      ""
-  ).trim();
-}
-
-function getSectionTitle(section: any) {
-  return String(section?.title || section?.name || section?.label || "").trim();
-}
-
-function findEvidenceSection(proc: any) {
-  const sections = getProcedureSections(proc);
-
-  return sections.find((section: any) => {
-    const item = getSectionNumber(section);
-    const title = normalizeText(getSectionTitle(section));
-
-    return (
-      item === "6" ||
-      item === "6." ||
-      item.startsWith("6 ") ||
-      item.startsWith("6.") ||
-      title.includes("evidencia") ||
-      title.includes("evidencias") ||
-      title.includes("evidencia objetiva")
-    );
-  });
-}
-
-function getTableFromSection(section: any) {
-  if (!section) return null;
-
-  if (section.table) return section.table;
-  if (section.importedTable) return section.importedTable;
-
-  if (Array.isArray(section.tables) && section.tables.length > 0) {
-    return section.tables[0];
-  }
-
-  if (Array.isArray(section.rows)) {
-    return {
-      columns: section.columns || [],
-      rows: section.rows,
-    };
-  }
-
-  return null;
-}
-
-function normalizeRow(row: any): string[] {
-  if (Array.isArray(row)) {
-    return row.map((cell) => String(cell || "").trim());
-  }
-
-  if (row && typeof row === "object") {
-    return [
-      row.requisito || row.requirement || row.requirementId || row.item || "",
-      row.evidencia || row.evidence || row.objectiveEvidence || "",
-      row.registro || row.record || row.associatedRecord || "",
-      row.verificacao || row.verification || row.checkMethod || "",
-    ].map((cell) => String(cell || "").trim());
-  }
-
-  return [];
-}
-
-function isValidRequirementRow(row: any) {
-  const normalizedRow = normalizeRow(row);
-
-  if (normalizedRow.length === 0) return false;
-
-  const requisito = String(normalizedRow[0] || "").trim();
-  const evidencia = String(normalizedRow[1] || "").trim();
-  const registro = String(normalizedRow[2] || "").trim();
-  const verificacao = String(normalizedRow[3] || "").trim();
-
-  if (!requisito && !evidencia && !registro && !verificacao) return false;
-
-  const joined = normalizedRow.join(" ").toLowerCase();
-
-  if (
-    joined.includes("requisito") &&
-    joined.includes("evid") &&
-    joined.includes("registro")
-  ) {
-    return false;
-  }
-
-  return true;
-}
-/*
-function getRequirementRowsFromProcedure(proc: any) {
-  const evidenceSection = findEvidenceSection(proc);
-  const table = getTableFromSection(evidenceSection);
-
-  if (!table) return [];
-
-  const rows = Array.isArray(table.rows) ? table.rows : [];
-
-  return rows.filter(isValidRequirementRow).map((row: any, index: number) => {
-    const normalizedRow = normalizeRow(row);
-
-    return {
-      requirementId: `${normalizeProcedureCode(String(proc?.code || ""))}.6.${
-        index + 1
-      }`,
-      requisito: normalizedRow[0] || "-",
-      evidencia: normalizedRow[1] || "-",
-      registro: normalizedRow[2] || "-",
-      verificacao: normalizedRow[3] || "-",
-    };
-  });
-}
-*/
 function getFamilyFromProcedure(code: string, proc?: any) {
   const familyFromData = normalizeFamily(
-    proc?.family ||
-      proc?.familyCOP ||
-      proc?.familia ||
-      proc?.familiaCOP ||
-      proc?.copFamily ||
-      proc?.categoria
+    proc?.family || proc?.familyCOP || proc?.familia || proc?.copFamily || proc?.categoria
   );
 
-  if (familyFromData !== "A classificar") {
-    return familyFromData;
-  }
+  if (familyFromData !== "A classificar") return familyFromData;
 
   const normalizedCode = normalizeProcedureCode(code);
-
   const familyMap: Record<string, string> = {
     "CPR-01": "Controle de Projeto",
     "CPR-02": "Controle de Projeto",
     "CPR-03": "Controle de Projeto",
-
     "CPR-04": "Controle de Materiais",
     "CPR-05": "Controle de Materiais",
     "CPR-06": "Controle de Materiais",
@@ -467,16 +102,15 @@ function getFamilyFromProcedure(code: string, proc?: any) {
 function getFamilyBorderClass(conformityPercentage: number) {
   if (conformityPercentage >= 80) return "border-l-green-500";
   if (conformityPercentage >= 40) return "border-l-yellow-500";
-
   return "border-l-red-500";
 }
 
 function getFamilyStatusLabel(conformityPercentage: number) {
   if (conformityPercentage >= 80) return "Controlado";
   if (conformityPercentage >= 40) return "Atenção";
-
   return "Crítico";
 }
+
 function hasObjectiveEvidence(item: EvidenceItem) {
   return (
     Boolean(item.evidences?.[0]?.trim()) ||
@@ -487,33 +121,20 @@ function hasObjectiveEvidence(item: EvidenceItem) {
 function buildFamilyStats(evidenceItems: EvidenceItem[]): FamilyStats[] {
   const familyMap = new Map<
     string,
-    {
-      family: string;
-      total: number;
-      ok: number;
-      nok: number;
-      pendente: number;
-    }
+    { family: string; total: number; ok: number; nok: number; pendente: number }
   >();
 
   evidenceItems.forEach((item) => {
     const family =
-  normalizeFamily(item.family) !== "A classificar"
-    ? normalizeFamily(item.family)
-    : getFamilyFromProcedure(item.procedureCode, item);
+      normalizeFamily(item.family) !== "A classificar"
+        ? normalizeFamily(item.family)
+        : getFamilyFromProcedure(item.procedureCode, item);
 
     if (!familyMap.has(family)) {
-      familyMap.set(family, {
-        family,
-        total: 0,
-        ok: 0,
-        nok: 0,
-        pendente: 0,
-      });
+      familyMap.set(family, { family, total: 0, ok: 0, nok: 0, pendente: 0 });
     }
 
     const current = familyMap.get(family)!;
-
     current.total += 1;
 
     if (item.status === "OK" && hasObjectiveEvidence(item)) {
@@ -534,7 +155,6 @@ function buildFamilyStats(evidenceItems: EvidenceItem[]): FamilyStats[] {
     .sort((a, b) => {
       if (b.pendente !== a.pendente) return b.pendente - a.pendente;
       if (b.nok !== a.nok) return b.nok - a.nok;
-
       return a.conformityPercentage - b.conformityPercentage;
     });
 }
@@ -561,9 +181,9 @@ function buildProcedureStats(evidenceItems: EvidenceItem[]): ProcedureStats[] {
         procedureCode: item.procedureCode,
         procedureName: item.procedureName,
         family:
-  normalizeFamily(item.family) !== "A classificar"
-    ? normalizeFamily(item.family)
-    : getFamilyFromProcedure(item.procedureCode, item),
+          normalizeFamily(item.family) !== "A classificar"
+            ? normalizeFamily(item.family)
+            : getFamilyFromProcedure(item.procedureCode, item),
         total: 0,
         ok: 0,
         nok: 0,
@@ -572,7 +192,6 @@ function buildProcedureStats(evidenceItems: EvidenceItem[]): ProcedureStats[] {
     }
 
     const current = procedureMap.get(key)!;
-
     current.total += 1;
 
     if (item.status === "OK" && hasObjectiveEvidence(item)) {
@@ -593,259 +212,8 @@ function buildProcedureStats(evidenceItems: EvidenceItem[]): ProcedureStats[] {
           : 0,
     }))
     .sort((a, b) =>
-      a.procedureCode.localeCompare(b.procedureCode, "pt-BR", {
-        numeric: true,
-      })
+      a.procedureCode.localeCompare(b.procedureCode, "pt-BR", { numeric: true })
     );
-}
-
-function findEvidenceForRequirement(
-  evidencias: Evidencia[],
-  procedureCode: string,
-  rowIndex: number,
-  requisito: string
-) {
-  const normalizedProcedureCode = normalizeProcedureCode(procedureCode);
-
-  const possibleRequirementIds = [
-  `${normalizedProcedureCode}.6.${rowIndex + 1}`,
-  `${normalizedProcedureCode}-6.${rowIndex + 1}`,
-  `6.${rowIndex + 1}`,
-    String(rowIndex + 1),
-    requisito,
-  ].map((value) => normalizeText(value));
-
-  return evidencias.find((evidence) => {
-    const evidenceProcedureCode = normalizeProcedureCode(
-      String(evidence.cprCode || evidence.procedureCode || "")
-    );
-
-    if (evidenceProcedureCode !== normalizedProcedureCode) return false;
-
-    const evidenceRequirementId = normalizeText(evidence.requirementId || "");
-
-    return possibleRequirementIds.includes(evidenceRequirementId);
-  });
-}
-/*
-function readEvidenceItems(): ReadEvidenceResult {
-  const evidencias = safeJsonParse<Evidencia[]>(
-    localStorage.getItem("evidences"),
-    []
-  );
-
-  const { procedures, sources } = getAllProceduresFromLocalStorage();
-
-  const evidenceItems: EvidenceItem[] = [];
-
-  procedures.forEach((proc: any) => {
-    const procedureCode = normalizeProcedureCode(String(proc?.code || ""));
-    const procedureName = getProcedureName(proc) || procedureCode;
-    const sourceKey = getProcedureSourceKey(proc);
-    const matchingProcedure = allProcedures.find(
-  (proc) => normalizeProcedureCode(String(proc.code || "")) === procedureCode
-);
-
-const family = getFamilyFromProcedure(procedureCode, matchingProcedure);
-    const rows = getRequirementRowsFromProcedure(proc);
-
-    rows.forEach((row, rowIndex) => {
-      const evidence = findEvidenceForRequirement(
-        evidencias,
-        procedureCode,
-        rowIndex,
-        row.requisito
-      );
-
-      const status = normalizeDashboardStatus(evidence?.status || "PENDENTE");
-
-      evidenceItems.push({
-        id: `${procedureCode}-8-${rowIndex + 1}`,
-        procedureCode,
-        procedureName,
-        family,
-        requirementId: row.requirementId,
-        requisito: row.requisito,
-        evidencia: row.evidencia,
-        registro: row.registro,
-        verificacao: row.verificacao,
-        status,
-        evidences: Array.isArray(evidence?.evidences)
-          ? evidence.evidences
-          : [],
-        registros: Array.isArray(evidence?.registros)
-          ? evidence.registros
-          : [],
-        responsavel:
-          String(evidence?.responsible || evidence?.responsavel || "").trim() ||
-          "-",
-        dataVerificacao:
-          String(
-            evidence?.updatedAt || evidence?.dataVerificacao || ""
-          ).trim() || "-",
-        observacao:
-          String(evidence?.observacao || evidence?.observation || "").trim() ||
-          "",
-        sourceKey,
-      });
-    });
-  });
-    const evidenciasSemProcedimento = evidencias.filter((evidence) => {
-    const code = normalizeProcedureCode(
-      String(evidence.cprCode || evidence.procedureCode || "")
-    );
-
-    if (!code) return false;
-
-    return !evidenceItems.some(
-      (item) =>
-        item.procedureCode === code &&
-        normalizeText(item.requirementId) ===
-          normalizeText(evidence.requirementId || "")
-    );
-  });
-
-  evidenciasSemProcedimento.forEach((evidence, index) => {
-    const procedureCode = normalizeProcedureCode(
-      String(evidence.cprCode || evidence.procedureCode || "")
-    );
-
-    if (!procedureCode) return;
-
-    const status = normalizeDashboardStatus(evidence.status || "PENDENTE");
-    const procedureName = procedureCode;
-    const family = getFamilyFromProcedure(procedureCode);
-
-    evidenceItems.push({
-      id: `${procedureCode}-manual-${index + 1}`,
-      procedureCode,
-      procedureName,
-      family,
-      requirementId: String(evidence.requirementId || "-"),
-      requisito: String(evidence.requirementId || "-"),
-      evidencia: "-",
-      registro: "-",
-      verificacao: "-",
-      status,
-      evidences: Array.isArray(evidence.evidences) ? evidence.evidences : [],
-      registros: Array.isArray(evidence.registros) ? evidence.registros : [],
-      responsavel:
-        String(evidence.responsible || evidence.responsavel || "").trim() ||
-        "-",
-      dataVerificacao:
-        String(evidence.updatedAt || evidence.dataVerificacao || "").trim() ||
-        "-",
-      observacao:
-        String(evidence.observacao || evidence.observation || "").trim() || "",
-      sourceKey: "evidencias",
-    });
-  });
-
-  const sourcesWithEvidence = [...sources];
-
-  if (evidencias.length > 0) {
-    sourcesWithEvidence.push({
-      key: "evidencias",
-      count: evidencias.length,
-    });
-  }
-
-  return {
-    evidenceItems,
-    sources: sourcesWithEvidence,
-    proceduresCount: procedures.length,
-  };
-}
-*/
-
-function readEvidenceItemsFromStorageOnly(): ReadEvidenceResult {
-  const evidencias = safeJsonParse<Evidencia[]>(
-    localStorage.getItem("evidences"),
-    []
-  );
-
-  const allProcedures = safeJsonParse<any[]>(
-    localStorage.getItem("customProcedures"),
-    []
-  );
-
-  const getProcedureByCode = (procedureCode: string) => {
-  return allProcedures.find(
-    (proc) =>
-      normalizeProcedureCode(String(proc.code || "")) === procedureCode
-  );
-};
-
-  const getProcedureDisplayName = (procedureCode: string) => {
-    const matchingProcedure = allProcedures.find(
-      (proc) =>
-        normalizeProcedureCode(String(proc.code || "")) === procedureCode
-    );
-
-    return (
-      String(matchingProcedure?.name || matchingProcedure?.title || "").trim() ||
-      procedureCode
-    );
-  };
-
-  const validNewStructureEvidences = evidencias.filter((evidence) => {
-  const requirementId = String(evidence.requirementId || "");
-  return requirementId.includes("6.");
-});
-
-const evidenceItems: EvidenceItem[] = validNewStructureEvidences.map((evidence, index) => {
-    const procedureCode = normalizeProcedureCode(
-      String(evidence.cprCode || evidence.procedureCode || "")
-    );
-
-    const status = normalizeDashboardStatus(evidence.status || "PENDENTE");
-    const matchingProcedure = getProcedureByCode(procedureCode);
-    const procedureName = getProcedureDisplayName(procedureCode);
-    const family = getFamilyFromProcedure(procedureCode, matchingProcedure);
-
-    return {
-      id: String(
-        evidence.id || `${procedureCode}-${evidence.requirementId}-${index}`
-      ),
-      procedureCode,
-      procedureName,
-      family,
-      requirementId: String(evidence.requirementId || "-"),
-      requisito: String(
-        (evidence as any).requisito || evidence.requirementId || "-"
-      ),
-      evidencia: "-",
-      registro: "-",
-      verificacao: "-",
-      status,
-      evidences: Array.isArray(evidence.evidences) ? evidence.evidences : [],
-      registros: Array.isArray(evidence.registros) ? evidence.registros : [],
-      responsavel:
-        String(evidence.responsible || evidence.responsavel || "").trim() ||
-        "-",
-      dataVerificacao:
-        String(evidence.updatedAt || evidence.dataVerificacao || "").trim() ||
-        "-",
-      observacao:
-        String(evidence.observacao || evidence.observation || "").trim() || "",
-      sourceKey: "localStorage.evidences",
-    };
-  });
-
-  const uniqueProcedures = new Set(
-    evidenceItems.map((item) => item.procedureCode).filter(Boolean)
-  );
-
-  return {
-    evidenceItems,
-    sources: [
-      {
-        key: "localStorage.evidences",
-        count: evidenceItems.length,
-      },
-    ],
-    proceduresCount: uniqueProcedures.size,
-  };
 }
 
 function getStatusBadge(status: DashboardStatus) {
@@ -877,17 +245,77 @@ function getStatusBadge(status: DashboardStatus) {
 
 function getCriticalBorderClass(item: EvidenceItem) {
   if (item.status === "NOK") return "border-l-red-500";
-
   return "border-l-yellow-500";
 }
 
 export default function DashboardCOP() {
   const [, setLocation] = useLocation();
 
-  const { evidenceItems, sources, proceduresCount } = useMemo(
-  () => readEvidenceItemsFromStorageOnly(),
-    []
-  );
+  const { data: procedures = [], isLoading: loadingProcedures } =
+    trpc.procedures.list.useQuery();
+  const { data: copReqs = [], isLoading: loadingCopReqs } =
+    trpc.copRequirements.list.useQuery();
+  const { data: evidenceFiles = [], isLoading: loadingEvidences } =
+    trpc.evidences.list.useQuery();
+
+  const isLoading = loadingProcedures || loadingCopReqs || loadingEvidences;
+
+  const procedureById = useMemo(() => {
+    const map = new Map<number, (typeof procedures)[0]>();
+    procedures.forEach((p) => map.set(p.id, p));
+    return map;
+  }, [procedures]);
+
+  // Each COP requirement becomes one EvidenceItem.
+  // Evidence files are linked via copRequirementId; procedure is resolved via
+  // the first evidence file that also carries a procedureId.
+  const evidenceItems = useMemo((): EvidenceItem[] => {
+    return copReqs.map((req) => {
+      const reqFiles = evidenceFiles.filter(
+        (e) => e.copRequirementId === req.id
+      );
+
+      const linkedProcedureId =
+        reqFiles.find((e) => e.procedureId != null)?.procedureId ?? null;
+      const linkedProcedure =
+        linkedProcedureId != null
+          ? (procedureById.get(linkedProcedureId) ?? null)
+          : null;
+
+      const procedureCode = normalizeProcedureCode(
+        linkedProcedure?.code ?? ""
+      );
+      const procedureName = linkedProcedure?.name ?? "";
+      const family = getFamilyFromProcedure(procedureCode, linkedProcedure);
+
+      // atendido → OK | parcial → NOK | nao_atendido → Pendente
+      const status: DashboardStatus =
+        req.status === "atendido"
+          ? "OK"
+          : req.status === "parcial"
+          ? "NOK"
+          : "Pendente";
+
+      return {
+        id: String(req.id),
+        procedureCode,
+        procedureName,
+        family,
+        requirementId: req.code,
+        requisito: req.description ?? req.code,
+        evidencia: "-",
+        registro: "-",
+        verificacao: "-",
+        status,
+        evidences: reqFiles.map((e) => e.fileName),
+        registros: [],
+        responsavel: "-",
+        dataVerificacao: "-",
+        observacao: "",
+        sourceKey: "db",
+      };
+    });
+  }, [copReqs, evidenceFiles, procedureById]);
 
   const stats = useMemo(() => {
     let ok = 0;
@@ -904,12 +332,7 @@ export default function DashboardCOP() {
       }
     });
 
-    return {
-      total: evidenceItems.length,
-      ok,
-      nok,
-      pendente,
-    };
+    return { total: evidenceItems.length, ok, nok, pendente };
   }, [evidenceItems]);
 
   const conformityPercentage =
@@ -926,8 +349,12 @@ export default function DashboardCOP() {
     [evidenceItems]
   );
 
+  // Only include items that are linked to a procedure for per-procedure stats.
   const procedureStats = useMemo(
-    () => buildProcedureStats(evidenceItems),
+    () =>
+      buildProcedureStats(
+        evidenceItems.filter((item) => item.procedureCode !== "")
+      ),
     [evidenceItems]
   );
 
@@ -941,6 +368,14 @@ export default function DashboardCOP() {
       ),
     [evidenceItems]
   );
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background p-4 md:p-8 flex items-center justify-center">
+        <p className="text-muted-foreground">Carregando dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
@@ -958,20 +393,13 @@ export default function DashboardCOP() {
 
         <Card className="p-4 bg-slate-50 border-slate-200">
           <p className="text-sm text-muted-foreground">
-            Diagnóstico: {proceduresCount} procedimento(s) localizado(s),{" "}
-            {stats.total} requisito(s) de Evidências Objetivas contabilizado(s).
+            Diagnóstico: {procedures.length} procedimento(s) cadastrado(s),{" "}
+            {copReqs.length} requisito(s) COP contabilizado(s),{" "}
+            {evidenceFiles.length} evidência(s) registrada(s).
           </p>
-
-          {sources.length > 0 && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Fonte(s):{" "}
-              {sources
-                .map((source) => `${source.key} (${source.count})`)
-                .join(", ")}
-            </p>
-          )}
         </Card>
-                <div className="grid md:grid-cols-4 gap-4">
+
+        <div className="grid md:grid-cols-4 gap-4">
           <Card className="p-6 border-l-4 border-l-blue-500">
             <p className="text-sm text-muted-foreground font-medium">
               Total de Requisitos
@@ -980,7 +408,7 @@ export default function DashboardCOP() {
               {stats.total}
             </div>
             <p className="text-xs text-muted-foreground">
-              Linhas válidas de Evidências Objetivas
+              Requisitos COP cadastrados
             </p>
           </Card>
 
@@ -990,7 +418,7 @@ export default function DashboardCOP() {
             </p>
             <div className="text-3xl font-bold text-foreground">{stats.ok}</div>
             <p className="text-xs text-muted-foreground">
-              {stats.ok} de {stats.total} requisitos com evidência/registro
+              {stats.ok} de {stats.total} requisitos com evidência registrada
             </p>
           </Card>
 
@@ -1036,9 +464,9 @@ export default function DashboardCOP() {
           <Progress value={conformityPercentage} className="h-2 w-full" />
 
           <p className="text-sm text-muted-foreground mt-4">
-            Cálculo: evidências OK com evidência/registro ÷ total de requisitos
-            válidos de Evidências Objetivas. Requisitos sem comprovação são
-            classificados como pendentes.
+            Cálculo: requisitos atendidos com evidência registrada ÷ total de
+            requisitos COP. Requisitos sem comprovação são classificados como
+            pendentes.
           </p>
         </div>
 
@@ -1051,7 +479,7 @@ export default function DashboardCOP() {
             <Card className="p-6">
               <p className="text-sm text-muted-foreground">
                 Nenhuma família COP foi identificada porque ainda não há
-                requisitos contabilizados em Evidências Objetivas.
+                requisitos cadastrados com procedimentos vinculados.
               </p>
             </Card>
           ) : (
@@ -1134,7 +562,7 @@ export default function DashboardCOP() {
           {procedureStats.length === 0 ? (
             <Card className="p-6">
               <p className="text-sm text-muted-foreground">
-                Nenhum CPR com requisito de Evidências Objetivas foi localizado.
+                Nenhum CPR com requisito COP vinculado foi localizado.
               </p>
             </Card>
           ) : (
@@ -1251,9 +679,7 @@ export default function DashboardCOP() {
                 return (
                   <Card
                     key={item.id}
-                    className={`p-6 border-l-4 ${getCriticalBorderClass(
-                      item
-                    )}`}
+                    className={`p-6 border-l-4 ${getCriticalBorderClass(item)}`}
                   >
                     <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                       <div className="flex-1 space-y-2">
@@ -1262,7 +688,7 @@ export default function DashboardCOP() {
                             variant="outline"
                             className="font-mono font-bold"
                           >
-                            {item.procedureCode}
+                            {item.requirementId}
                           </Badge>
 
                           <Badge className={status.className}>
@@ -1272,7 +698,13 @@ export default function DashboardCOP() {
                             {status.label}
                           </Badge>
 
-                          <Badge variant="secondary">{item.family}</Badge>
+                          {item.procedureCode && (
+                            <Badge variant="secondary">{item.procedureCode}</Badge>
+                          )}
+
+                          {item.family && item.family !== "A classificar" && (
+                            <Badge variant="secondary">{item.family}</Badge>
+                          )}
 
                           {item.status === "OK" &&
                             !hasObjectiveEvidence(item) && (
@@ -1282,9 +714,11 @@ export default function DashboardCOP() {
                             )}
                         </div>
 
-                        <p className="text-foreground font-medium">
-                          {item.procedureName || "Procedimento sem nome"}
-                        </p>
+                        {item.procedureName && (
+                          <p className="text-foreground font-medium">
+                            {item.procedureName}
+                          </p>
+                        )}
 
                         <p className="text-sm text-muted-foreground">
                           <span className="font-semibold text-foreground">
@@ -1293,35 +727,12 @@ export default function DashboardCOP() {
                           {item.requisito || "-"}
                         </p>
 
-                        <p className="text-sm text-muted-foreground">
-                          <span className="font-semibold text-foreground">
-                            Evidência esperada:{" "}
-                          </span>
-                          {item.evidencia || "-"}
-                        </p>
-
-                        <p className="text-sm text-muted-foreground">
-                          <span className="font-semibold text-foreground">
-                            Registro esperado:{" "}
-                          </span>
-                          {item.registro || "-"}
-                        </p>
-
                         {item.evidences?.[0] && (
                           <p className="text-sm text-muted-foreground">
                             <span className="font-semibold text-foreground">
-                              Evidência apresentada:{" "}
+                              Evidência registrada:{" "}
                             </span>
                             {item.evidences[0]}
-                          </p>
-                        )}
-
-                        {item.registros?.[0] && (
-                          <p className="text-sm text-muted-foreground">
-                            <span className="font-semibold text-foreground">
-                              Registro apresentado:{" "}
-                            </span>
-                            {item.registros[0]}
                           </p>
                         )}
 
@@ -1335,15 +746,17 @@ export default function DashboardCOP() {
                         )}
                       </div>
 
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() =>
-                          setLocation(`/procedimentos/${item.procedureCode}`)
-                        }
-                      >
-                        Abrir CPR
-                      </Button>
+                      {item.procedureCode && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() =>
+                            setLocation(`/procedimentos/${item.procedureCode}`)
+                          }
+                        >
+                          Abrir CPR
+                        </Button>
+                      )}
                     </div>
                   </Card>
                 );
@@ -1354,7 +767,7 @@ export default function DashboardCOP() {
 
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-foreground">
-            Todos os requisitos de Evidências Objetivas
+            Todos os requisitos COP
           </h2>
 
           {evidenceItems.length === 0 ? (
@@ -1364,13 +777,12 @@ export default function DashboardCOP() {
               </div>
 
               <p className="font-semibold text-foreground">
-                Nenhum requisito de Evidências Objetivas foi localizado.
+                Nenhum requisito COP foi cadastrado.
               </p>
 
               <p className="text-sm text-muted-foreground mt-2">
-                Verifique se os CPRs possuem uma seção 6 (Evidências Objetivas)
-                com tabela contendo as colunas Requisito, Evidência Objetiva,
-                Registro Associado e Forma de Verificação.
+                Cadastre requisitos COP na página de Requisitos para que
+                apareçam no dashboard.
               </p>
             </Card>
           ) : (
@@ -1378,8 +790,8 @@ export default function DashboardCOP() {
               <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
                 <FileText className="w-4 h-4" />
                 <span>
-                  Lista consolidada para conferência dos requisitos utilizados
-                  no cálculo do dashboard.
+                  Lista consolidada de requisitos COP utilizados no cálculo do
+                  dashboard.
                 </span>
               </div>
 
@@ -1387,25 +799,12 @@ export default function DashboardCOP() {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="border-b bg-slate-50">
+                      <th className="text-left p-2 font-semibold">Código</th>
                       <th className="text-left p-2 font-semibold">CPR</th>
                       <th className="text-left p-2 font-semibold">Família</th>
+                      <th className="text-left p-2 font-semibold">Requisito</th>
                       <th className="text-left p-2 font-semibold">
-                        Requisito
-                      </th>
-                      <th className="text-left p-2 font-semibold">
-                        Evidência esperada
-                      </th>
-                      <th className="text-left p-2 font-semibold">
-                        Registro esperado
-                      </th>
-                      <th className="text-left p-2 font-semibold">
-                        Evidência apresentada
-                      </th>
-                      <th className="text-left p-2 font-semibold">
-                        Registro apresentado
-                      </th>
-                      <th className="text-left p-2 font-semibold">
-                        Verificação
+                        Evidência registrada
                       </th>
                       <th className="text-left p-2 font-semibold">Status</th>
                       <th className="text-left p-2 font-semibold">Ação</th>
@@ -1421,39 +820,40 @@ export default function DashboardCOP() {
                           key={`${item.id}-all`}
                           className="border-b align-top"
                         >
+                          <td className="p-2 font-mono text-xs">
+                            {item.requirementId}
+                          </td>
                           <td className="p-2 font-medium">
-                            {item.procedureCode}
+                            {item.procedureCode || "-"}
                           </td>
                           <td className="p-2">{item.family}</td>
                           <td className="p-2">{item.requisito || "-"}</td>
-                          <td className="p-2">{item.evidencia || "-"}</td>
-                          <td className="p-2">{item.registro || "-"}</td>
                           <td className="p-2">
                             {item.evidences?.[0] || "-"}
                           </td>
-                          <td className="p-2">
-                            {item.registros?.[0] || "-"}
-                          </td>
-                          <td className="p-2">{item.verificacao || "-"}</td>
                           <td className="p-2">
                             <Badge className={status.className}>
                               {status.label}
                             </Badge>
                           </td>
                           <td className="p-2">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                setLocation(
-                                  `/procedimentos/${item.procedureCode}`
-                                )
-                              }
-                            >
-                              <Search className="w-4 h-4 mr-1" />
-                              Ver
-                            </Button>
+                            {item.procedureCode ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  setLocation(
+                                    `/procedimentos/${item.procedureCode}`
+                                  )
+                                }
+                              >
+                                <Search className="w-4 h-4 mr-1" />
+                                Ver
+                              </Button>
+                            ) : (
+                              "-"
+                            )}
                           </td>
                         </tr>
                       );

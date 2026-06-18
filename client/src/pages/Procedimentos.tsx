@@ -1,8 +1,9 @@
 import { normalizeProcedureCode } from "@/lib/utils-cop";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { useLocation } from "wouter";
 import { baseProcedures } from "@/data/procedures/baseProcedures";
+import { trpc } from "@/lib/trpc";
 
 type Procedure = {
   id: number;
@@ -31,6 +32,13 @@ function normalizeRevision(value?: string) {
 }
 
 const PROCEDURE_FAMILIES: ProcedureFamily[] = [
+  {
+    id: "todos",
+    sigla: "ALL",
+    label: "TODOS",
+    codes: [],
+    buttonClassName: "bg-gray-800 text-white hover:bg-gray-900",
+  },
   {
     id: "controle-projeto",
     sigla: "CP",
@@ -75,70 +83,34 @@ const PROCEDURE_FAMILIES: ProcedureFamily[] = [
   },
 ];
 
+const ALL_FAMILY_CODES = PROCEDURE_FAMILIES.filter(f => f.id !== "todos").flatMap(f => f.codes);
+
 function normalizeStatus(value?: string) {
   const normalized = String(value || "").trim().toLowerCase();
-
-  if (
-    normalized === "em revisão" ||
-    normalized === "em revisao" ||
-    normalized === "em_revisao"
-  ) {
-    return "em_revisao";
-  }
-
+  if (normalized === "em_revisao" || normalized === "em revisao" || normalized === "em revisão") return "em_revisao";
   if (normalized === "aprovado") return "aprovado";
   if (normalized === "bloqueado") return "bloqueado";
   if (normalized === "cancelado") return "cancelado";
   if (normalized === "nao_iniciado") return "nao_iniciado";
   if (normalized === "implementado") return "implementado";
   if (normalized === "em_desenvolvimento") return "em_desenvolvimento";
-
   return "em_elaboracao";
-}
-
-function getStoredProcedureView(code: string) {
-  try {
-    const normalizedCode = normalizeProcedureCode(code);
-    const raw = localStorage.getItem(`procedure-${normalizedCode}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function readCustomProcedures() {
-  try {
-    const raw = localStorage.getItem("customProcedures");
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
 }
 
 function normalizeProcedure(item: any, fallbackId: number): Procedure | null {
   if (!item || !item.code || !item.name) return null;
-
   const normalizedCode = normalizeProcedureCode(String(item.code));
-  const storedView = getStoredProcedureView(normalizedCode);
-
-  const revision = normalizeRevision(storedView?.revision ?? item.revision ?? "00");
-
-  const status = normalizeStatus(
-    storedView?.status ?? item.status ?? "em_elaboracao"
-  );
-
   return {
-  id: Number(item.id ?? fallbackId),
-  code: normalizedCode,
-  name: String(item.name ?? ""),
-  description: String(item.description ?? ""),
-  status,
-  responsible: String(item.responsible ?? "Engenharia"),
-  createdAt: String(item.createdAt ?? ""),
-  revision,
-  family: item.family || undefined,
-};
+    id: Number(item.id ?? fallbackId),
+    code: normalizedCode,
+    name: String(item.name ?? ""),
+    description: String(item.description ?? ""),
+    status: normalizeStatus(item.status),
+    responsible: String(item.responsible ?? "Engenharia"),
+    createdAt: String(item.createdAt ?? ""),
+    revision: normalizeRevision(item.revision ?? "00"),
+    family: item.family || undefined,
+  };
 }
 
 function formatStatusLabel(status: string) {
@@ -152,7 +124,6 @@ function formatStatusLabel(status: string) {
     cancelado: "Cancelado",
     em_revisao: "Em revisão",
   };
-
   return map[status] || status;
 }
 
@@ -167,7 +138,6 @@ function getStatusBadgeClass(status: string) {
     cancelado: "bg-red-100 text-red-700",
     em_revisao: "bg-violet-100 text-violet-700",
   };
-
   return map[status] || "bg-slate-100 text-slate-700";
 }
 
@@ -179,91 +149,75 @@ function getNumericProcedureBase(code: string) {
 
 function findFamily(proc: Procedure) {
   if (proc.family) {
-    const familyById = PROCEDURE_FAMILIES.find(
-      (item) => item.id === proc.family
-    );
-
+    const familyById = PROCEDURE_FAMILIES.find(item => item.id === proc.family && item.id !== "todos");
     if (familyById) return familyById;
   }
-
   const baseCode = getNumericProcedureBase(proc.code);
-  return PROCEDURE_FAMILIES.find((item) => item.codes.includes(baseCode)) || null;
+  return PROCEDURE_FAMILIES.find(item => item.id !== "todos" && item.codes.includes(baseCode)) || null;
 }
 
-function loadAllProcedures(): Procedure[] {
-  const baseList = baseProcedures
-    .map((item, idx) => normalizeProcedure(item, idx + 1))
-    .filter(Boolean) as Procedure[];
-
-  const customProcedures = readCustomProcedures()
-    .map((item, idx) => normalizeProcedure(item, 1000 + idx))
-    .filter(Boolean) as Procedure[];
-
-  const mergedByCode = new Map<string, Procedure>();
-
-  baseList.forEach((item) => {
-    mergedByCode.set(item.code.toLowerCase(), item);
-  });
-
-  customProcedures.forEach((item) => {
-    mergedByCode.set(item.code.toLowerCase(), item);
-  });
-
-  const result = Array.from(mergedByCode.values());
-
-  result.sort((a, b) => {
+function sortProcedures(list: Procedure[]) {
+  return [...list].sort((a, b) => {
     const numA = parseInt(String(a.code).replace(/\D/g, "")) || 0;
     const numB = parseInt(String(b.code).replace(/\D/g, "")) || 0;
-
     if (numA !== numB) return numA - numB;
-
     return a.code.localeCompare(b.code, "pt-BR", { numeric: true });
   });
-
-  return result;
 }
 
 export default function Procedimentos() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
-  const [procedures, setProcedures] = useState<Procedure[]>([]);
-  const [selectedFamily, setSelectedFamily] = useState<string>("controle-projeto");
+  const [selectedFamily, setSelectedFamily] = useState<string>("todos");
 
-  useEffect(() => {
-    setProcedures(loadAllProcedures());
-  }, [location]);
+  const { data: dbProcedures = [], isLoading } = trpc.procedures.list.useQuery();
 
-  const selectedFamilyData = useMemo(() => {
-    return PROCEDURE_FAMILIES.find((family) => family.id === selectedFamily);
-  }, [selectedFamily]);
+  const allProcedures = useMemo(() => {
+    const mergedByCode = new Map<string, Procedure>();
+
+    baseProcedures
+      .map((item, idx) => normalizeProcedure(item, idx + 1))
+      .filter(Boolean)
+      .forEach(proc => mergedByCode.set(proc!.code.toLowerCase(), proc!));
+
+    dbProcedures
+      .map(item => normalizeProcedure(item, item.id))
+      .filter(Boolean)
+      .forEach(proc => mergedByCode.set(proc!.code.toLowerCase(), proc!));
+
+    return sortProcedures(Array.from(mergedByCode.values()));
+  }, [dbProcedures]);
+
+  const selectedFamilyData = useMemo(
+    () => PROCEDURE_FAMILIES.find(f => f.id === selectedFamily),
+    [selectedFamily]
+  );
 
   const filteredProcedures = useMemo(() => {
-  if (!selectedFamilyData) return procedures;
+    const searchLower = search.toLowerCase();
 
-  return procedures.filter((proc) => {
-    const baseCode = getNumericProcedureBase(proc.code);
+    const matchesSearch = (proc: Procedure) =>
+      `${proc.code} ${proc.name}`.toLowerCase().includes(searchLower);
 
-    const familyMatches =
-      proc.family &&
-      PROCEDURE_FAMILIES.some((family) => family.id === proc.family) &&
-      proc.family === selectedFamilyData.id;
+    if (selectedFamily === "todos") {
+      return allProcedures.filter(matchesSearch);
+    }
 
-    const codeMatches = selectedFamilyData.codes.includes(baseCode);
-
-    const text = `${proc.code} ${proc.name}`.toLowerCase();
-    const searchMatch = text.includes(search.toLowerCase());
-
-    return (familyMatches || codeMatches) && searchMatch;
-  });
-}, [procedures, selectedFamilyData, search]);
+    return allProcedures.filter(proc => {
+      if (!matchesSearch(proc)) return false;
+      const baseCode = getNumericProcedureBase(proc.code);
+      const familyMatches = proc.family === selectedFamily;
+      const codeMatches = selectedFamilyData?.codes.includes(baseCode) ?? false;
+      return familyMatches || codeMatches;
+    });
+  }, [allProcedures, selectedFamily, selectedFamilyData, search]);
 
   function handleOpen(code: string) {
-    const normalizedCode = normalizeProcedureCode(code);
-    setLocation(`/procedimentos/${normalizedCode}`);
+    setLocation(`/procedimentos/${normalizeProcedureCode(code)}`);
   }
 
-  function handleNovo() {
-    setLocation("/novo-procedimento");
+  if (isLoading) {
+    return <div className="p-6">Carregando procedimentos...</div>;
   }
 
   return (
@@ -278,7 +232,7 @@ export default function Procedimentos() {
 
         <button
           type="button"
-          onClick={handleNovo}
+          onClick={() => setLocation("/novo-procedimento")}
           className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition"
         >
           Novo Procedimento
@@ -287,32 +241,28 @@ export default function Procedimentos() {
 
       <Card className="p-4">
         <div className="flex flex-wrap gap-2">
-          {PROCEDURE_FAMILIES.map((family) => {
-            const isActive = selectedFamily === family.id;
-
-            return (
-              <button
-                key={family.id}
-                type="button"
-                onClick={() => setSelectedFamily(family.id)}
-                className={`px-3 py-2 rounded-md text-xs font-semibold transition border ${
-                  family.buttonClassName
-                } ${isActive ? "ring-2 ring-offset-1 ring-slate-300" : ""}`}
-              >
-                {family.label}
-              </button>
-            );
-          })}
+          {PROCEDURE_FAMILIES.map(family => (
+            <button
+              key={family.id}
+              type="button"
+              onClick={() => setSelectedFamily(family.id)}
+              className={`px-3 py-2 rounded-md text-xs font-semibold transition border ${
+                family.buttonClassName
+              } ${selectedFamily === family.id ? "ring-2 ring-offset-1 ring-slate-300" : ""}`}
+            >
+              {family.label}
+            </button>
+          ))}
         </div>
         <div className="mt-4">
-  <input
-    type="text"
-    placeholder="Buscar por código ou nome..."
-    value={search}
-    onChange={(e) => setSearch(e.target.value)}
-    className="border p-2 rounded w-full"
-  />
-</div>
+          <input
+            type="text"
+            placeholder="Buscar por código ou nome..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="border p-2 rounded w-full"
+          />
+        </div>
       </Card>
 
       <Card className="p-4">
@@ -325,7 +275,6 @@ export default function Procedimentos() {
               Procedimentos pertencentes a esta família.
             </p>
           </div>
-
           <div className="text-sm text-muted-foreground">
             {filteredProcedures.length} procedimento(s)
           </div>
@@ -340,33 +289,32 @@ export default function Procedimentos() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {filteredProcedures.map((proc) => {
+          {filteredProcedures.map(proc => {
             const family = findFamily(proc);
+            const isUnclassified = !family && !ALL_FAMILY_CODES.includes(getNumericProcedureBase(proc.code));
 
             return (
               <Card
-  key={proc.code}
-  className={`p-4 cursor-pointer hover:shadow-md transition border ${
-    proc.status === "cancelado"
-      ? "bg-red-50 border-red-200 opacity-80"
-      : ""
-  }`}
-  onClick={() => handleOpen(proc.code)}
->
+                key={proc.code}
+                className={`p-4 cursor-pointer hover:shadow-md transition border ${
+                  proc.status === "cancelado" ? "bg-red-50 border-red-200 opacity-80" : ""
+                }`}
+                onClick={() => handleOpen(proc.code)}
+              >
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0">
                     <div className="flex items-center gap-3 flex-wrap">
                       <span className="font-bold text-lg">{proc.code}</span>
 
                       <span
-  className={`text-xs px-2 py-1 rounded-full ${
-    proc.status === "cancelado"
-      ? "bg-red-200 text-red-800 font-semibold"
-      : getStatusBadgeClass(proc.status)
-  }`}
->
-  {formatStatusLabel(proc.status)}
-</span>
+                        className={`text-xs px-2 py-1 rounded-full ${
+                          proc.status === "cancelado"
+                            ? "bg-red-200 text-red-800 font-semibold"
+                            : getStatusBadgeClass(proc.status)
+                        }`}
+                      >
+                        {formatStatusLabel(proc.status)}
+                      </span>
 
                       <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-700">
                         {proc.revision}
@@ -389,7 +337,11 @@ export default function Procedimentos() {
                     <div>
                       <span className="text-muted-foreground">Família: </span>
                       <span className="font-medium">
-                        {family ? `${family.sigla} - ${family.label}` : "SEM FAMÍLIA"}
+                        {family
+                          ? `${family.sigla} - ${family.label}`
+                          : isUnclassified
+                          ? "A classificar"
+                          : "SEM FAMÍLIA"}
                       </span>
                     </div>
 

@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { baseProcedures } from "@/data/procedures/baseProcedures";
+import { normalizeProcedureCode } from "@/lib/utils-cop";
+import { trpc } from "@/lib/trpc";
 
 type Subitem = {
   id: string;
@@ -254,6 +256,35 @@ function normalizeFamily(value: string) {
   return "a-classificar";
 }
 
+function mapLegacyStatus(legacyStatus: string): "nao_iniciado" | "em_desenvolvimento" | "implementado" {
+  const s = String(legacyStatus || "").toLowerCase();
+  if (s === "aprovado" || s === "implementado") return "implementado";
+  if (s === "em_revisao" || s === "em_desenvolvimento") return "em_desenvolvimento";
+  return "nao_iniciado";
+}
+
+function loadSectionsFromCache(code: string): Section[] {
+  try {
+    const raw = localStorage.getItem(`sections:${code}`);
+    if (!raw) return createEmptySections();
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length === SECTION_TITLES.length) {
+      return parsed.map((s: any, index: number): Section => ({
+        number: Number(s.number ?? index + 1),
+        title: String(s.title ?? SECTION_TITLES[index] ?? ""),
+        content: String(s.content ?? ""),
+        hasSubitems: Boolean(s.hasSubitems),
+        subitems: Array.isArray(s.subitems) ? s.subitems : [],
+        mode: (s.mode === "table" ? "table" : "text") as SectionMode,
+        table: s.table,
+      }));
+    }
+    return createEmptySections();
+  } catch {
+    return createEmptySections();
+  }
+}
+
 function inferFamilyFromProcedure(code: string, name: string) {
   const normalizedCode = normalizeProcedureCode(code);
   const normalizedName = String(name || "").toLowerCase();
@@ -396,31 +427,6 @@ function normalizeStructureToSections(structure: any[] | undefined): Section[] {
   });
 }
 
-function findProcedureInCustomProcedures(editCode: string) {
-  try {
-    const raw = localStorage.getItem("customProcedures");
-    const parsed = raw ? JSON.parse(raw) : [];
-
-    if (!Array.isArray(parsed)) return null;
-
-    return (
-      mergeProcedureWithLatestRevision(
-        parsed.find((item: any) => {
-          const itemCode = String(item.code || "").toLowerCase();
-          const searchCode = String(editCode || "").toLowerCase();
-
-          return (
-            itemCode === searchCode ||
-            itemCode === normalizeProcedureCode(searchCode).toLowerCase()
-          );
-        }) || null
-      ) || null
-    );
-  } catch {
-    return null;
-  }
-}
-
 function findProcedureInBase(editCode: string) {
   return (
     baseProcedures.find((item: any) => {
@@ -435,258 +441,6 @@ function findProcedureInBase(editCode: string) {
   );
 }
 
-function safelyReadCustomProcedures() {
-  try {
-    const raw = localStorage.getItem("customProcedures");
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function sortRevisions(revisions: any[]) {
-  return [...revisions].sort((a, b) => {
-    const numericA = Number(normalizeRevision(a?.revision || "00"));
-    const numericB = Number(normalizeRevision(b?.revision || "00"));
-
-    if (Number.isFinite(numericA) && Number.isFinite(numericB)) {
-      return numericA - numericB;
-    }
-
-    return String(a?.revision || "00").localeCompare(String(b?.revision || "00"));
-  });
-}
-
-function hasUsefulStructure(structure: any) {
-  if (!Array.isArray(structure)) return false;
-
-  return structure.some((section: any) => {
-    const hasContent = String(section?.content || "").trim().length > 0;
-
-    const hasSubitems =
-      Array.isArray(section?.subitems) &&
-      section.subitems.some((subitem: any) => {
-        return (
-          String(subitem?.title || "").trim().length > 0 ||
-          String(subitem?.content || "").trim().length > 0
-        );
-      });
-
-    const hasTable =
-      section?.table &&
-      Array.isArray(section.table.rows) &&
-      section.table.rows.some((row: any[]) => {
-        if (!Array.isArray(row)) return false;
-
-        return row.some((cell, cellIndex) => {
-          const value = String(cell || "").trim();
-
-          // No item 8, "Pendente" pode ser apenas valor padrão do status.
-          if (cellIndex === 4 && value.toLowerCase() === "pendente") {
-            return false;
-          }
-
-          return value.length > 0;
-        });
-      });
-
-    return hasContent || hasSubitems || hasTable;
-  });
-}
-
-function getStructureCandidate(item: any) {
-  if (Array.isArray(item?.structure)) return item.structure;
-  if (Array.isArray(item?.sections)) return item.sections;
-  return [];
-}
-
-function getBestStructureForProcedure(procedure: any, preferredRevision?: any) {
-  const preferredStructure = getStructureCandidate(preferredRevision);
-  if (hasUsefulStructure(preferredStructure)) return preferredStructure;
-
-  const topLevelStructure = getStructureCandidate(procedure);
-  if (hasUsefulStructure(topLevelStructure)) return topLevelStructure;
-
-  if (Array.isArray(procedure?.revisions)) {
-    const usefulRevision = [...sortRevisions(procedure.revisions)]
-      .reverse()
-      .find((revisionItem: any) =>
-        hasUsefulStructure(getStructureCandidate(revisionItem))
-      );
-
-    if (usefulRevision) return getStructureCandidate(usefulRevision);
-  }
-
-  return preferredStructure.length > 0 ? preferredStructure : topLevelStructure;
-}
-
-function getLatestRevisionRecord(procedure: any) {
-  if (!Array.isArray(procedure?.revisions) || procedure.revisions.length === 0) {
-    return null;
-  }
-
-  const sorted = sortRevisions(procedure.revisions);
-  return sorted[sorted.length - 1] || null;
-}
-
-function mergeProcedureWithLatestRevision(procedure: any) {
-  if (!procedure) return null;
-
-  const latestRevision = getLatestRevisionRecord(procedure);
-
-  if (!latestRevision) {
-    return {
-      ...procedure,
-      structure: getStructureCandidate(procedure),
-      sections: getStructureCandidate(procedure),
-    };
-  }
-
-  const structureToUse = getBestStructureForProcedure(procedure, latestRevision);
-
-  return {
-    ...procedure,
-    ...latestRevision,
-    id: procedure.id,
-    code: normalizeProcedureCode(
-      String(procedure.code || latestRevision.code || "")
-    ),
-    name: String(latestRevision.name || procedure.name || ""),
-    description: String(
-      latestRevision.description || procedure.description || ""
-    ),
-    responsible: String(
-      latestRevision.responsible || procedure.responsible || "Engenharia"
-    ),
-    status: normalizeStatus(latestRevision.status || procedure.status),
-    revision: normalizeRevision(
-      latestRevision.revision || procedure.revision || "00"
-    ),
-    structure: structureToUse,
-    sections: structureToUse,
-  };
-}
-
-function buildRevisionRecordFromPayload(payload: any) {
-  return {
-    revision: normalizeRevision(payload.revision || "00"),
-    status: normalizeStatus(payload.status || "em_elaboracao"),
-    name: payload.name,
-    description: payload.description,
-    responsible: payload.responsible,
-
-    createdAt: payload.createdAt,
-    updatedAt: payload.updatedAt,
-
-    createdBy: payload.createdBy || "",
-    createdByRole: payload.createdByRole || "",
-    lastModifiedBy: payload.lastModifiedBy || "",
-    lastModifiedByRole: payload.lastModifiedByRole || "",
-    lastModifiedAt: payload.lastModifiedAt || "",
-    approvedBy: payload.approvedBy || "",
-    approvedByRole: payload.approvedByRole || "",
-    approvedAt: payload.approvedAt || "",
-
-    structure: Array.isArray(payload.structure) ? payload.structure : [],
-    sections: Array.isArray(payload.sections) ? payload.sections : [],
-    source: payload.source || "manual",
-  };
-}
-
-function upsertRevisionInProcedure(existingItem: any, payload: any) {
-  const payloadStructure = getStructureCandidate(payload);
-  const existingBestStructure = getBestStructureForProcedure(existingItem || {}, null);
-
-  const safePayload =
-    !hasUsefulStructure(payloadStructure) && hasUsefulStructure(existingBestStructure)
-      ? {
-          ...payload,
-          structure: existingBestStructure,
-          sections: existingBestStructure,
-        }
-      : payload;
-
-  const revisionRecord = buildRevisionRecordFromPayload(safePayload);
-  const targetRevision = normalizeRevision(revisionRecord.revision);
-
-  const existingRevisions = Array.isArray(existingItem?.revisions)
-    ? sortRevisions(existingItem.revisions)
-    : existingItem
-    ? [
-        buildRevisionRecordFromPayload({
-          ...existingItem,
-          revision: existingItem?.revision || "00",
-          status: existingItem?.status || "em_elaboracao",
-          structure: getStructureCandidate(existingItem),
-          sections: getStructureCandidate(existingItem),
-        }),
-      ]
-    : [];
-
-  const updatedRevisions = existingRevisions.some(
-    (item: any) => normalizeRevision(item?.revision || "00") === targetRevision
-  )
-    ? existingRevisions.map((item: any) =>
-        normalizeRevision(item?.revision || "00") === targetRevision
-          ? { ...item, ...revisionRecord }
-          : item
-      )
-    : [...existingRevisions, revisionRecord];
-
-  const sortedRevisions = sortRevisions(updatedRevisions);
-  const latest = sortedRevisions[sortedRevisions.length - 1] || revisionRecord;
-  const structureToUse = getBestStructureForProcedure(
-    {
-      ...existingItem,
-      ...safePayload,
-      revisions: sortedRevisions,
-    },
-    latest
-  );
-
-  return {
-    ...existingItem,
-    ...safePayload,
-    id: existingItem?.id ?? safePayload.id,
-    createdAt: existingItem?.createdAt ?? safePayload.createdAt,
-    code: safePayload.code,
-    revision: normalizeRevision(latest.revision || safePayload.revision || "00"),
-    status: normalizeStatus(latest.status || safePayload.status),
-    structure: structureToUse,
-    sections: structureToUse,
-    revisions: sortedRevisions,
-  };
-}
-
-function getStoredProcedureView(code: string) {
-  try {
-    const raw = localStorage.getItem(`procedure-${code}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function setStoredProcedureView(
-  code: string,
-  data: { status: string; revision: string }
-) {
-  try {
-    localStorage.setItem(`procedure-${code}`, JSON.stringify(data));
-  } catch (error) {
-    console.error("Falha ao gravar procedure view:", error);
-  }
-}
-
-function removeStoredProcedureView(code: string) {
-  try {
-    localStorage.removeItem(`procedure-${code}`);
-  } catch (error) {
-    console.error("Falha ao remover procedure view:", error);
-  }
-}
-
 export default function NovoProcedimento() {
   const [, setLocation] = useLocation();
 
@@ -696,16 +450,25 @@ export default function NovoProcedimento() {
     return params.get("code");
   }, []);
 
+  const existingProcedureQuery = trpc.procedures.getByCode.useQuery(
+    { code: editCode! },
+    { enabled: !!editCode, retry: false }
+  );
+  const createProcedureMutation = trpc.procedures.create.useMutation();
+  const updateProcedureMutation = trpc.procedures.update.useMutation();
+  const utils = trpc.useUtils();
+  const initializedForRef = useRef<string | null>(null);
+
   const [isEditMode, setIsEditMode] = useState(false);
   const [originalCode, setOriginalCode] = useState<string | null>(null);
   const [loadedProcedureId, setLoadedProcedureId] = useState<number | null>(null);
 
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
-  const [family, setFamily] = useState("A classificar");
+  const [family, setFamily] = useState("a-classificar");
   const [description, setDescription] = useState("");
   const [responsible, setResponsible] = useState("Engenharia");
-  const [status, setStatus] = useState("em_elaboracao");
+  const [status, setStatus] = useState("nao_iniciado");
   const [revision, setRevision] = useState("00");
 
   const [sections, setSections] = useState<Section[]>(createEmptySections());
@@ -715,7 +478,7 @@ export default function NovoProcedimento() {
   const isEvidenceSection = currentSection.number === 6;
   const isCopSection = currentSection.number === 7;
   const isTableMode = currentSection.mode === "table";
-  const isApprovedLocked = isEditMode && status === "aprovado";
+  const isApprovedLocked = isEditMode && status === "implementado";
 
   const progressText = useMemo(() => {
     return `Capítulo ${currentIndex + 1} de ${sections.length}`;
@@ -723,72 +486,81 @@ export default function NovoProcedimento() {
 
   useEffect(() => {
     if (!editCode) {
+      initializedForRef.current = null;
       setIsEditMode(false);
       setOriginalCode(null);
       setLoadedProcedureId(null);
       setCode("");
       setName("");
-      setFamily("A classificar");
+      setFamily("a-classificar");
       setDescription("");
       setResponsible("Engenharia");
-      setStatus("em_elaboracao");
+      setStatus("nao_iniciado");
       setRevision("00");
       setSections(createEmptySections());
       setCurrentIndex(0);
       return;
     }
 
-    const foundCustom = findProcedureInCustomProcedures(editCode);
-    const foundBase = findProcedureInBase(editCode);
-    const found = foundCustom || foundBase;
+    if (existingProcedureQuery.isLoading) return;
+    if (initializedForRef.current === editCode) return;
 
-    if (!found) {
-      console.error(`Procedimento ${editCode} não encontrado.`);
-      setIsEditMode(false);
-      setOriginalCode(null);
-      setLoadedProcedureId(null);
+    initializedForRef.current = editCode;
+
+    const dbProc = existingProcedureQuery.data ?? null;
+
+    if (dbProc) {
+      const loadedCode = normalizeProcedureCode(dbProc.code);
+      setIsEditMode(true);
+      setOriginalCode(dbProc.code);
+      setLoadedProcedureId(dbProc.id);
+      setCode(loadedCode);
+      setName(dbProc.name);
+      setDescription(dbProc.description || "");
+      setResponsible(dbProc.responsible || "Engenharia");
+      setStatus(dbProc.status);
+      setRevision("00");
+      setFamily(normalizeFamily((dbProc as any).family || inferFamilyFromProcedure(loadedCode, dbProc.name)));
+      setSections(loadSectionsFromCache(loadedCode));
+      setCurrentIndex(0);
       return;
     }
 
-    setIsEditMode(true);
-    setOriginalCode(String(found.code || ""));
-    setLoadedProcedureId(
-      typeof found.id === "number" ? found.id : Number(found.id) || null
-    );
+    const foundBase = findProcedureInBase(editCode);
 
-    const storedView = getStoredProcedureView(String(found.code || ""));
-
-    const loadedCode = normalizeProcedureCode(String(found.code || ""));
-    const loadedName = String(found.name || found.metadata?.title || "");
-    const loadedFamily = normalizeFamily(
-      String(found.family || inferFamilyFromProcedure(loadedCode, loadedName))
-    );
-
-    setCode(loadedCode);
-    setName(loadedName);
-    setFamily(loadedFamily);
-    setDescription(String(found.description || found.objective || ""));
-    setResponsible(String(found.responsible || "Engenharia"));
-    setStatus(
-      normalizeStatus(
-        String(storedView?.status || found.status || found.metadata?.status || "em_elaboracao")
-      )
-    );
-    setRevision(
-      normalizeRevision(String(storedView?.revision || found.revision || found.metadata?.revision || "00"))
-    );
-
-    const latestRevision = getLatestRevisionRecord(found);
-    const structureForEdit = getBestStructureForProcedure(found, latestRevision);
-
-    if (Array.isArray(structureForEdit) && structureForEdit.length > 0) {
-      setSections(normalizeStructureToSections(structureForEdit));
-    } else {
-      setSections(createEmptySections());
+    if (!foundBase) {
+      console.error(`Procedimento ${editCode} não encontrado.`);
+      return;
     }
 
+    const loadedCode = normalizeProcedureCode(String((foundBase as any).code || ""));
+    const loadedName = String(
+      (foundBase as any).name || (foundBase as any).metadata?.title || ""
+    );
+
+    setIsEditMode(true);
+    setOriginalCode(String((foundBase as any).code || ""));
+    setLoadedProcedureId(null);
+    setCode(loadedCode);
+    setName(loadedName);
+    setDescription(String((foundBase as any).description || (foundBase as any).objective || ""));
+    setResponsible(String((foundBase as any).responsible || "Engenharia"));
+    setStatus(mapLegacyStatus(String((foundBase as any).status || "nao_iniciado")));
+    setRevision("00");
+    setFamily(
+      normalizeFamily(
+        String((foundBase as any).family || inferFamilyFromProcedure(loadedCode, loadedName))
+      )
+    );
+
+    const structure = (foundBase as any).structure || (foundBase as any).sections || [];
+    setSections(
+      Array.isArray(structure) && structure.length > 0
+        ? normalizeStructureToSections(structure)
+        : createEmptySections()
+    );
     setCurrentIndex(0);
-  }, [editCode]);
+  }, [editCode, existingProcedureQuery.isLoading, existingProcedureQuery.data]);
 
   function updateSectionContent(index: number, value: string) {
     if (isApprovedLocked) return;
@@ -1047,107 +819,60 @@ export default function NovoProcedimento() {
   }
 
   function buildPayload() {
-  const existing = safelyReadCustomProcedures();
-  const currentUser = getCurrentUser();
+    const normalizedCode = normalizeProcedureCode(code);
+    const normalizedFamily = normalizeFamily(family);
 
-  const nowIso = new Date().toISOString();
-  const today = nowIso.slice(0, 10);
+    const normalizedStructure = sections.map((section) => {
+      const isSection4 = section.number === 4;
+      const isSection6 = section.number === 6;
+      const isSection7 = section.number === 7;
+      const isTableSection =
+        isSection4 || isSection6 || (isSection7 && section.mode === "table");
 
-  const existingItem = existing.find((item: any) => {
-    const itemCode = String(item.code || "").toLowerCase();
-    const original = String(originalCode || "").toLowerCase();
-    const normalizedOriginal = normalizeProcedureCode(original).toLowerCase();
-
-    return itemCode === original || itemCode === normalizedOriginal;
-  });
-
-  const preservedId =
-    isEditMode && loadedProcedureId !== null
-      ? loadedProcedureId
-      : existingItem?.id || Date.now();
-
-  const normalizedCode = normalizeProcedureCode(code);
-  const normalizedFamily = normalizeFamily(family);
-
-  const normalizedStructure = sections.map((section) => {
-    const isSection4 = section.number === 4;
-    const isSection6 = section.number === 6;
-    const isSection7 = section.number === 7;
-    const isTableSection =
-      isSection4 || isSection6 || (isSection7 && section.mode === "table");
-
-    const baseSection: any = {
-      number: String(section.number),
-      item: String(section.number),
-      title: section.title,
-      content: isTableSection ? "" : section.content.trim(),
-      subitems: isTableSection
-        ? []
-        : section.subitems.map((subitem, index) => ({
-            item: buildNumberLabel(section.number, index),
-            title: subitem.title.trim(),
-            content: subitem.content.trim(),
-          })),
-      mode: isTableSection ? "table" : "text",
-    };
-
-    if (isTableSection && section.table) {
-      const normalizedTable = normalizeTableForSection(
-        section.number,
-        section.table
-      );
-
-      baseSection.table = {
-        columns: (normalizedTable?.columns || []).map((col) => col.trim()),
-        rows: (normalizedTable?.rows || []).map((row) =>
-          row.map((cell, cellIndex) =>
-            isSection6 && cellIndex === 4
-              ? normalizeEvidenceStatus(cell)
-              : String(cell || "").trim()
-          )
-        ),
+      const baseSection: any = {
+        number: String(section.number),
+        item: String(section.number),
+        title: section.title,
+        content: isTableSection ? "" : section.content.trim(),
+        subitems: isTableSection
+          ? []
+          : section.subitems.map((subitem, index) => ({
+              item: buildNumberLabel(section.number, index),
+              title: subitem.title.trim(),
+              content: subitem.content.trim(),
+            })),
+        mode: isTableSection ? "table" : "text",
       };
-    }
 
-    return baseSection;
-  });
+      if (isTableSection && section.table) {
+        const normalizedTable = normalizeTableForSection(section.number, section.table);
+        baseSection.table = {
+          columns: (normalizedTable?.columns || []).map((col) => col.trim()),
+          rows: (normalizedTable?.rows || []).map((row) =>
+            row.map((cell, cellIndex) =>
+              isSection6 && cellIndex === 4
+                ? normalizeEvidenceStatus(cell)
+                : String(cell || "").trim()
+            )
+          ),
+        };
+      }
 
-  return {
-    id: preservedId,
-    code: normalizedCode,
-    name: name.trim(),
-    family: normalizedFamily,
-    description: description.trim(),
-    status: normalizeStatus(status),
-    revision: normalizeRevision(revision),
-    responsible: responsible.trim(),
+      return baseSection;
+    });
 
-    createdAt:
-      isEditMode && existingItem?.createdAt ? existingItem.createdAt : today,
-    updatedAt: today,
-
-    createdBy:
-      isEditMode && existingItem?.createdBy
-        ? existingItem.createdBy
-        : currentUser.name,
-    createdByRole:
-      isEditMode && existingItem?.createdByRole
-        ? existingItem.createdByRole
-        : currentUser.role,
-
-    lastModifiedBy: currentUser.name,
-    lastModifiedByRole: currentUser.role,
-    lastModifiedAt: nowIso,
-
-    approvedBy: existingItem?.approvedBy || "",
-    approvedByRole: existingItem?.approvedByRole || "",
-    approvedAt: existingItem?.approvedAt || "",
-
-    source: "manual",
-    structure: normalizedStructure,
-    sections: normalizedStructure,
-  };
-}
+    return {
+      code: normalizedCode,
+      name: name.trim(),
+      family: normalizedFamily,
+      description: description.trim(),
+      status,
+      revision: normalizeRevision(revision),
+      responsible: responsible.trim(),
+      structure: normalizedStructure,
+      sections: normalizedStructure,
+    };
+  }
 
   function handlePreviewJson() {
     const payload = buildPayload();
@@ -1198,120 +923,54 @@ export default function NovoProcedimento() {
     return true;
   }
 
-  function handleSaveProcedure() {
+  async function handleSaveProcedure() {
     if (isApprovedLocked) {
       alert(
-        "Procedimento aprovado está bloqueado para edição. Qualquer alteração deve ser feita em uma nova revisão."
+        "Procedimento implementado está bloqueado para edição. Qualquer alteração deve ser feita em uma nova revisão."
       );
       return;
     }
 
     if (!validateForm()) return;
 
-    const payload = buildPayload();
-    const existing = safelyReadCustomProcedures();
+    const normalizedCode = normalizeProcedureCode(code);
+    const dbStatus = status as "nao_iniciado" | "em_desenvolvimento" | "implementado";
 
     try {
-      if (isEditMode) {
-        const payloadCodeLower = payload.code.toLowerCase();
-        const originalCodeLower = String(originalCode || "").toLowerCase();
-        const normalizedOriginalCodeLower =
-          normalizeProcedureCode(originalCode || "").toLowerCase();
+      const normalizedFamily = normalizeFamily(family);
+      const familyValue = normalizedFamily !== "a-classificar" ? normalizedFamily : undefined;
 
-        const conflictingProcedure = existing.find((item: any) => {
-          const itemCodeLower = String(item.code || "").toLowerCase();
-
-          if (
-            originalCodeLower &&
-            (itemCodeLower === originalCodeLower ||
-              itemCodeLower === normalizedOriginalCodeLower)
-          ) {
-            return false;
-          }
-
-          return itemCodeLower === payloadCodeLower;
+      if (isEditMode && loadedProcedureId !== null) {
+        await updateProcedureMutation.mutateAsync({
+          id: loadedProcedureId,
+          code: normalizedCode,
+          name: name.trim(),
+          description: description.trim() || undefined,
+          status: dbStatus,
+          responsible: responsible.trim() || undefined,
+          family: familyValue,
         });
-
-        if (conflictingProcedure) {
-          alert(`Já existe outro procedimento salvo com o código ${payload.code}.`);
-          return;
-        }
-
-        const indexByOriginalCode = existing.findIndex((item: any) => {
-          const itemCodeLower = String(item.code || "").toLowerCase();
-
-          return (
-            itemCodeLower === originalCodeLower ||
-            itemCodeLower === normalizedOriginalCodeLower
-          );
+      } else {
+        await createProcedureMutation.mutateAsync({
+          code: normalizedCode,
+          name: name.trim(),
+          description: description.trim() || undefined,
+          status: dbStatus,
+          responsible: responsible.trim() || undefined,
+          family: familyValue,
         });
-
-        const indexById =
-          loadedProcedureId !== null
-            ? existing.findIndex(
-                (item: any) => Number(item.id) === Number(loadedProcedureId)
-              )
-            : -1;
-
-        const targetIndex =
-          indexByOriginalCode >= 0 ? indexByOriginalCode : indexById;
-
-        if (targetIndex >= 0) {
-          const currentItem = existing[targetIndex];
-          const updatedItem = upsertRevisionInProcedure(currentItem, payload);
-
-          const updated = [...existing];
-          updated[targetIndex] = updatedItem;
-          localStorage.setItem("customProcedures", JSON.stringify(updated));
-        } else {
-          localStorage.setItem(
-            "customProcedures",
-            JSON.stringify([...existing, upsertRevisionInProcedure(null, payload)])
-          );
-        }
-
-        setStoredProcedureView(payload.code, {
-          status: payload.status,
-          revision: payload.revision,
-        });
-
-        if (originalCode && originalCode.toLowerCase() !== payload.code.toLowerCase()) {
-          removeStoredProcedureView(originalCode);
-        }
-
-        alert(`Procedimento ${payload.code} atualizado com sucesso.`);
-        setLocation(`/procedimentos/${payload.code}`);
-        return;
       }
 
-      const alreadyExists = existing.some(
-        (item: any) =>
-          String(item.code || "").toLowerCase() === payload.code.toLowerCase()
-      );
-
-      if (alreadyExists) {
-        alert(`Já existe um procedimento salvo com o código ${payload.code}.`);
-        return;
-      }
-
-      localStorage.setItem(
-        "customProcedures",
-        JSON.stringify([...existing, upsertRevisionInProcedure(null, payload)])
-      );
-
-      setStoredProcedureView(payload.code, {
-        status: payload.status,
-        revision: payload.revision,
-      });
+      localStorage.setItem(`sections:${normalizedCode}`, JSON.stringify(sections));
+      await utils.procedures.list.invalidate();
 
       alert(
-        `Procedimento ${payload.code} salvo com sucesso.\nRevisão inicial criada: ${payload.revision}`
+        `Procedimento ${normalizedCode} ${isEditMode && loadedProcedureId !== null ? "atualizado" : "salvo"} com sucesso.`
       );
-
-      setLocation(`/procedimentos/${payload.code}`);
-    } catch (error) {
-      console.error(error);
-      alert("Falha ao salvar o procedimento no navegador.");
+      setLocation(`/procedimentos/${normalizedCode}`);
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || "Erro ao salvar o procedimento.");
     }
   }
 
@@ -1328,7 +987,7 @@ export default function NovoProcedimento() {
 
       {isApprovedLocked && (
         <div className="border border-amber-300 bg-amber-50 text-amber-900 rounded-md p-4">
-          Procedimento aprovado bloqueado para edição. Qualquer alteração deve
+          Procedimento implementado bloqueado para edição. Qualquer alteração deve
           ser realizada somente por meio de nova revisão.
         </div>
       )}
@@ -1383,11 +1042,9 @@ export default function NovoProcedimento() {
               onChange={(e) => setStatus(e.target.value)}
               disabled={isApprovedLocked}
             >
-              <option value="em_elaboracao">Em elaboração</option>
-              <option value="em_revisao">Em revisão</option>
-              <option value="aprovado">Aprovado</option>
-              <option value="bloqueado">Bloqueado</option>
-              <option value="cancelado">Cancelado</option>
+              <option value="nao_iniciado">Não iniciado</option>
+              <option value="em_desenvolvimento">Em desenvolvimento</option>
+              <option value="implementado">Implementado</option>
             </select>
           </div>
 
@@ -1761,8 +1418,16 @@ export default function NovoProcedimento() {
                 Gerar prévia JSON
               </Button>
 
-              <Button type="button" onClick={handleSaveProcedure} disabled={isApprovedLocked}>
-                {isEditMode ? "Salvar alterações" : "Salvar procedimento"}
+              <Button
+                type="button"
+                onClick={handleSaveProcedure}
+                disabled={isApprovedLocked || createProcedureMutation.isPending || updateProcedureMutation.isPending}
+              >
+                {createProcedureMutation.isPending || updateProcedureMutation.isPending
+                  ? "Salvando..."
+                  : isEditMode
+                  ? "Salvar alterações"
+                  : "Salvar procedimento"}
               </Button>
             </div>
           </div>
