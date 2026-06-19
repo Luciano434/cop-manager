@@ -1,6 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, procedures, operationalSteps, copRequirements, procedureCopLinks, evidences } from "../drizzle/schema";
+import { InsertUser, users, procedures, operationalSteps, copRequirements, procedureCopLinks, evidences, evidenceVerifications } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -319,4 +319,48 @@ export async function updateUserPassword(id: number, passwordHash: string): Prom
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(users).set({ passwordHash }).where(eq(users.id, id));
+}
+
+// Evidence Verifications queries
+export async function getEvidenceVerifications(cprCode: string, revision: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(evidenceVerifications)
+    .where(and(
+      eq(evidenceVerifications.cprCode, cprCode),
+      eq(evidenceVerifications.revision, revision),
+    ));
+}
+
+export async function upsertEvidenceVerification(data: {
+  cprCode: string;
+  revision: string;
+  requirementId: string;
+  status: "PENDENTE" | "OK" | "NOK" | "PARCIAL" | "NA";
+  evidenceText?: string;
+  registroText?: string;
+  responsible?: string;
+  observacao?: string;
+  updatedBy?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await db.select({ id: evidenceVerifications.id })
+    .from(evidenceVerifications)
+    .where(and(
+      eq(evidenceVerifications.cprCode, data.cprCode),
+      eq(evidenceVerifications.revision, data.revision),
+      eq(evidenceVerifications.requirementId, data.requirementId),
+    )).limit(1);
+
+  if (existing.length > 0) {
+    await db.update(evidenceVerifications)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(evidenceVerifications.id, existing[0].id));
+    return existing[0].id;
+  } else {
+    const result = await db.insert(evidenceVerifications).values(data);
+    return (result[0] as any).insertId;
+  }
 }

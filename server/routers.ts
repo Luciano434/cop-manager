@@ -39,6 +39,8 @@ import {
   setUserActive,
   deleteUserById,
   updateUserPassword,
+  getEvidenceVerifications,
+  upsertEvidenceVerification,
 } from "./db";
 
 export const appRouter = router({
@@ -405,6 +407,30 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteEvidence(input.id);
+      }),
+  }),
+
+  // Evidence Verifications (verificações por requisito COP)
+  evidenceVerifications: router({
+    listByCpr: publicProcedure
+      .input(z.object({ cprCode: z.string(), revision: z.string() }))
+      .query(async ({ input }) => {
+        return getEvidenceVerifications(input.cprCode, input.revision);
+      }),
+
+    upsert: protectedProcedure
+      .input(z.object({
+        cprCode: z.string(),
+        revision: z.string(),
+        requirementId: z.string(),
+        status: z.enum(["PENDENTE", "OK", "NOK", "PARCIAL", "NA"]),
+        evidenceText: z.string().optional(),
+        registroText: z.string().optional(),
+        responsible: z.string().optional(),
+        observacao: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        return upsertEvidenceVerification({ ...input, updatedBy: ctx.user.id });
       }),
   }),
 });

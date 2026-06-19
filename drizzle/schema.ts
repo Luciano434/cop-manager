@@ -165,3 +165,32 @@ export const evidencesRelations = relations(evidences, ({ one }) => ({
     references: [copRequirements.id],
   }),
 }));
+
+// Verificações de evidências por requisito COP (substitui localStorage "evidences")
+export const evidenceVerifications = mysqlTable("evidence_verifications", {
+  id: int("id").autoincrement().primaryKey(),
+  cprCode: varchar("cprCode", { length: 50 }).notNull(),
+  revision: varchar("revision", { length: 20 }).notNull().default("R00"),
+  requirementId: varchar("requirementId", { length: 50 }).notNull(),
+  status: mysqlEnum("status", ["PENDENTE", "OK", "NOK", "PARCIAL", "NA"]).notNull().default("PENDENTE"),
+  evidenceText: text("evidenceText"),
+  registroText: text("registroText"),
+  responsible: varchar("responsible", { length: 255 }),
+  observacao: text("observacao"),
+  updatedBy: int("updatedBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  cprIdx: index("ev_cpr_idx").on(table.cprCode),
+  uniqueReqIdx: index("ev_unique_req_idx").on(table.cprCode, table.revision, table.requirementId),
+}));
+
+export type EvidenceVerification = typeof evidenceVerifications.$inferSelect;
+export type InsertEvidenceVerification = typeof evidenceVerifications.$inferInsert;
+
+export const evidenceVerificationsRelations = relations(evidenceVerifications, ({ one }) => ({
+  updatedByUser: one(users, {
+    fields: [evidenceVerifications.updatedBy],
+    references: [users.id],
+  }),
+}));
