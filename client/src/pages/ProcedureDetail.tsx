@@ -337,6 +337,19 @@ function isValidTable(table?: ImportedTable) {
   );
 }
 
+function isSectionEmpty(section: NormalizedSection): boolean {
+  if (section.mode === "table") {
+    return !isValidTable(section.table);
+  }
+  const hasContent = contentToBlocks(section.content).length > 0;
+  const hasSubitems = (section.subitems || []).some(
+    (sub) =>
+      String(sub.title || "").trim().length > 0 ||
+      contentToBlocks(sub.content).length > 0
+  );
+  return !hasContent && !hasSubitems;
+}
+
 function renderStructuredText(content?: ImportedSectionContent) {
   const lines = contentToBlocks(content);
 
@@ -906,13 +919,13 @@ function normalizeFullProcedure(rawProcedure: FullProcedure): NormalizedSection[
 }
 
 function normalizeLegacyProcedure(rawProcedure: LegacyProcedure): NormalizedSection[] {
-  return Array.from({ length: 11 }, (_, index) => {
+  return Array.from({ length: 7 }, (_, index) => {
     const order = index + 1;
 
-    if (order === 6) {
+    if (order === 3) {
       return {
-        order: 6,
-        title: STANDARD_SECTION_TITLES[6] || "Descrição do Processo",
+        order: 3,
+        title: STANDARD_SECTION_TITLES[3] || "Procedimentos",
         content: rawProcedure.description || "",
         subitems:
           rawProcedure.steps?.map((step) => ({
@@ -920,7 +933,7 @@ function normalizeLegacyProcedure(rawProcedure: LegacyProcedure): NormalizedSect
             title: step.name,
             content: step.howToExecute || step.description || "",
           })) || [],
-        mode: "text",
+        mode: "text" as const,
       };
     }
 
@@ -929,7 +942,7 @@ function normalizeLegacyProcedure(rawProcedure: LegacyProcedure): NormalizedSect
       title: STANDARD_SECTION_TITLES[order] || `Capítulo ${order}`,
       content: "",
       subitems: [],
-      mode: "text",
+      mode: "text" as const,
     };
   });
 }
@@ -2386,7 +2399,7 @@ disabled={!["ADMIN", "QUALIDADE"].includes(currentUser.role)}
   </div>
 </Card>
 
-      {procedureView.sections.map((section) => {
+      {procedureView.sections.filter((section) => !isSectionEmpty(section)).map((section) => {
         const sectionKey = String(section.order);
         const isProcessSection = section.order === 6;
         const isTableSection =

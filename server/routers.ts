@@ -320,6 +320,10 @@ export const appRouter = router({
         code: z.string().optional(),
         description: z.string().optional(),
         status: z.enum(["nao_atendido", "parcial", "atendido"]).optional(),
+        procedureCode: z.string().optional(),
+        expectedEvidence: z.string().optional(),
+        expectedRecord: z.string().optional(),
+        verificationMethod: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...data } = input;

@@ -68,6 +68,10 @@ export const copRequirements = mysqlTable("cop_requirements", {
   code: varchar("code", { length: 50 }).notNull().unique(),
   description: text("description"),
   status: mysqlEnum("status", ["nao_atendido", "parcial", "atendido"]).notNull().default("nao_atendido"),
+  procedureCode: varchar("procedureCode", { length: 50 }),
+  expectedEvidence: text("expectedEvidence"),
+  expectedRecord: text("expectedRecord"),
+  verificationMethod: text("verificationMethod"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({
