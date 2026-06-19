@@ -84,7 +84,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   const validarEvidencia = (id: number) => {
-    const atualizadas = evidencias.map((e) =>
+    const atualizadas = evidencias.map((e): Evidencia =>
       e.id === id ? { ...e, status: "Validada" } : e
     );
     setEvidencias(atualizadas);
