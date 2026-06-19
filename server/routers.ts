@@ -41,6 +41,8 @@ import {
   updateUserPassword,
   getEvidenceVerifications,
   upsertEvidenceVerification,
+  getProcedureSections,
+  updateProcedureSections,
 } from "./db";
 
 export const appRouter = router({
@@ -231,6 +233,22 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteProcedure(input.id);
+      }),
+
+    getSections: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return getProcedureSections(input.id);
+      }),
+
+    updateSections: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        sections: z.any(),
+      }))
+      .mutation(async ({ input }) => {
+        await updateProcedureSections(input.id, input.sections);
+        return { success: true };
       }),
   }),
 

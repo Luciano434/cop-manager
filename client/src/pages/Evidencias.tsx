@@ -1,19 +1,10 @@
 import { normalizeProcedureCode, normalizeRevision, getCurrentUser } from "@/lib/utils-cop";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 
 type EvidenciaStatus = "OK" | "NOK" | "PARCIAL" | "PENDENTE" | "NA";
-
-function loadCPRs(): any[] {
-  try {
-    const raw = localStorage.getItem("customProcedures");
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
 
 function getSelectedRevision(cpr: any) {
   return normalizeRevision(cpr?.revision || "00");
@@ -33,16 +24,13 @@ function isValidRequirementRow(row: any[]) {
 }
 
 export default function Evidencias() {
-  const [cprs, setCprs] = useState<any[]>([]);
   const [selectedCpr, setSelectedCpr] = useState<any>(null);
   const [localChanges, setLocalChanges] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
 
   const currentUser = getCurrentUser();
 
-  useEffect(() => {
-    setCprs(loadCPRs());
-  }, []);
+  const { data: cprs = [] } = trpc.procedures.list.useQuery();
 
   const cprCode = selectedCpr ? normalizeProcedureCode(selectedCpr.code) : "";
   const revision = selectedCpr ? getSelectedRevision(selectedCpr) : "";
@@ -56,20 +44,43 @@ export default function Evidencias() {
     onSuccess: () => { refetch(); },
   });
 
+  const { data: dbSections } = trpc.procedures.getSections.useQuery(
+    { id: selectedCpr?.id ?? 0 },
+    { enabled: !!selectedCpr?.id }
+  );
+
   function getRequirements() {
-    const sections = Array.isArray(selectedCpr?.sections)
-      ? selectedCpr.sections
-      : Array.isArray(selectedCpr?.structure)
-      ? selectedCpr.structure
-      : [];
+    if (!selectedCpr) return [];
+
+    const code = normalizeProcedureCode(selectedCpr.code);
+
+    let sections: any[] = [];
+    if (Array.isArray(dbSections) && dbSections.length > 0) {
+      sections = dbSections;
+    } else {
+      try {
+        const raw = localStorage.getItem(`sections:${code}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) sections = parsed;
+        }
+      } catch {}
+    }
+
     if (sections.length === 0) return [];
+
     const item6 = sections.find(
       (s: any) =>
-        s.number === 6 || s.number === "6" || s.item === 6 || s.item === "6" ||
+        s.number === 6 ||
+        s.number === "6" ||
+        s.item === 6 ||
+        s.item === "6" ||
         (typeof s.title === "string" && s.title.startsWith("6"))
     );
+
     const rows = item6?.table?.rows || item6?.importedTable?.rows || item6?.rows || [];
     if (!Array.isArray(rows)) return [];
+
     return rows.filter(isValidRequirementRow).map((row: any[], index: number) => ({
       id: `6.${index + 1}`,
       requisito: String(row[0] || "").trim(),

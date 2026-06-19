@@ -31,6 +31,7 @@ export const procedures = mysqlTable("procedures", {
   status: mysqlEnum("status", ["nao_iniciado", "em_desenvolvimento", "implementado"]).notNull().default("nao_iniciado"),
   responsible: varchar("responsible", { length: 255 }),
   family: varchar("family", { length: 100 }),
+  sections: text("sections"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   createdBy: int("createdBy"),

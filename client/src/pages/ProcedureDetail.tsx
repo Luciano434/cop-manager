@@ -1305,6 +1305,10 @@ export default function ProcedureDetail() {
     { code: procedureCode },
     { retry: false }
   );
+  const { data: dbSections } = trpc.procedures.getSections.useQuery(
+    { id: dbProcedure?.id ?? 0 },
+    { enabled: !!dbProcedure?.id }
+  );
   const updateProcedureMutation = trpc.procedures.update.useMutation();
   const deleteProcedureMutation = trpc.procedures.delete.useMutation();
   const utils = trpc.useUtils();
@@ -1312,30 +1316,35 @@ export default function ProcedureDetail() {
   const dbProcedureAsImported = useMemo((): ImportedProcedure | null => {
     if (!dbProcedure) return null;
 
+    const mapSection = (s: any) => ({
+      number: String(s.number ?? ""),
+      item: String(s.number ?? ""),
+      title: String(s.title ?? ""),
+      content: s.content ?? "",
+      subitems: Array.isArray(s.subitems)
+        ? s.subitems.map((sub: any) => ({
+            item: sub.item ?? "",
+            title: sub.title ?? "",
+            content: sub.content ?? "",
+          }))
+        : [],
+      mode: s.mode === "table" ? "table" : ("text" as "text" | "table"),
+      table: s.table ?? undefined,
+    });
+
     let sections: ImportedSection[] = [];
-    try {
-      const raw = localStorage.getItem(`sections:${procedureCode}`);
-      if (raw) {
-        const parsed: any[] = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          sections = parsed.map((s: any) => ({
-            number: String(s.number ?? ""),
-            item: String(s.number ?? ""),
-            title: String(s.title ?? ""),
-            content: s.content ?? "",
-            subitems: Array.isArray(s.subitems)
-              ? s.subitems.map((sub: any) => ({
-                  item: sub.item ?? "",
-                  title: sub.title ?? "",
-                  content: sub.content ?? "",
-                }))
-              : [],
-            mode: s.mode === "table" ? "table" : ("text" as "text" | "table"),
-            table: s.table ?? undefined,
-          }));
+    if (Array.isArray(dbSections) && dbSections.length > 0) {
+      sections = dbSections.map(mapSection);
+    } else {
+      // fallback: localStorage enquanto não há dados no banco
+      try {
+        const raw = localStorage.getItem(`sections:${procedureCode}`);
+        if (raw) {
+          const parsed: any[] = JSON.parse(raw);
+          if (Array.isArray(parsed)) sections = parsed.map(mapSection);
         }
-      }
-    } catch { /* ignore */ }
+      } catch { /* ignore */ }
+    }
 
     const dbDate = (d: any): string => {
       if (!d) return new Date().toISOString().slice(0, 10);
@@ -1355,7 +1364,7 @@ export default function ProcedureDetail() {
       sections,
       revision: "00",
     };
-  }, [dbProcedure, procedureCode]);
+  }, [dbProcedure, dbSections, procedureCode]);
 
   const storedProcedure = useMemo(() => {
     if (dbProcedureAsImported) return null;

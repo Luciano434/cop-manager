@@ -315,6 +315,29 @@ export async function deleteUserById(id: number): Promise<void> {
   await db.delete(users).where(eq(users.id, id));
 }
 
+export async function getProcedureSections(procedureId: number): Promise<any[] | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select({ sections: procedures.sections })
+    .from(procedures)
+    .where(eq(procedures.id, procedureId))
+    .limit(1);
+  if (!result[0]?.sections) return null;
+  try {
+    return JSON.parse(result[0].sections);
+  } catch {
+    return null;
+  }
+}
+
+export async function updateProcedureSections(procedureId: number, sections: any[]): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(procedures)
+    .set({ sections: JSON.stringify(sections) })
+    .where(eq(procedures.id, procedureId));
+}
+
 export async function updateUserPassword(id: number, passwordHash: string): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

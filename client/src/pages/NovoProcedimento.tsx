@@ -456,6 +456,7 @@ export default function NovoProcedimento() {
   );
   const createProcedureMutation = trpc.procedures.create.useMutation();
   const updateProcedureMutation = trpc.procedures.update.useMutation();
+  const updateSectionsMutation = trpc.procedures.updateSections.useMutation();
   const utils = trpc.useUtils();
   const initializedForRef = useRef<string | null>(null);
 
@@ -961,6 +962,12 @@ export default function NovoProcedimento() {
         });
       }
 
+      // Salva seções no banco
+      const savedProc = await utils.procedures.getByCode.fetch({ code: normalizedCode });
+      if (savedProc?.id) {
+        await updateSectionsMutation.mutateAsync({ id: savedProc.id, sections });
+      }
+      // Mantém localStorage como cache local temporário
       localStorage.setItem(`sections:${normalizedCode}`, JSON.stringify(sections));
       await utils.procedures.list.invalidate();
 

@@ -23,7 +23,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import mysql from "mysql2/promise";
 import { drizzle } from "drizzle-orm/mysql2";
-import { count } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { copRequirements } from "../drizzle/schema";
 
 // ---------------------------------------------------------------------------
@@ -172,18 +172,23 @@ async function main() {
     console.log(`  ${r.code.padEnd(12)} ${r.procedureCode.padEnd(8)} ${r.description}`);
   }
 
-  await db
-    .insert(copRequirements)
-    .values(REQUIREMENTS)
-    .onDuplicateKeyUpdate({
-      set: {
-        description:       copRequirements.description,
-        procedureCode:     copRequirements.procedureCode,
-        expectedEvidence:  copRequirements.expectedEvidence,
-        expectedRecord:    copRequirements.expectedRecord,
-        verificationMethod: copRequirements.verificationMethod,
-      },
-    });
+  // Drizzle MySQL onDuplicateKeyUpdate com referências de coluna faz SET col=col (sem efeito).
+  // Usamos upsert manual: tenta INSERT; em caso de conflito de chave única, faz UPDATE explícito.
+  for (const r of REQUIREMENTS) {
+    try {
+      await db.insert(copRequirements).values(r);
+    } catch {
+      await db.update(copRequirements)
+        .set({
+          description:        r.description,
+          procedureCode:      r.procedureCode || null,
+          expectedEvidence:   r.expectedEvidence || null,
+          expectedRecord:     r.expectedRecord || null,
+          verificationMethod: r.verificationMethod || null,
+        })
+        .where(eq(copRequirements.code, r.code));
+    }
+  }
 
   const [{ value: after }] = await db
     .select({ value: count() })

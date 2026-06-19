@@ -107,7 +107,9 @@ function normalizeProcedure(item: any, fallbackId: number): Procedure | null {
     description: String(item.description ?? ""),
     status: normalizeStatus(item.status),
     responsible: String(item.responsible ?? "Engenharia"),
-    createdAt: String(item.createdAt ?? ""),
+    createdAt: item.createdAt instanceof Date
+      ? item.createdAt.toISOString().slice(0, 10)
+      : String(item.createdAt ?? "").slice(0, 10),
     revision: normalizeRevision(item.revision ?? "00"),
     family: item.family || undefined,
   };
