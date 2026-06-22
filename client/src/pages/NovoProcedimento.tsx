@@ -491,6 +491,30 @@ export default function NovoProcedimento() {
   const isTableMode = currentSection.mode === "table";
   const isApprovedLocked = isEditMode && status === "implementado";
 
+  function getRowLabel(rows: any[][], rowIndex: number): string {
+    const currentRow = rows[rowIndex];
+    const currentKey = (currentRow[0] || '') + '||' + (currentRow[1] || '');
+
+    let baseRowIndex = rowIndex;
+    for (let i = rowIndex - 1; i >= 0; i--) {
+      const key = (rows[i][0] || '') + '||' + (rows[i][1] || '');
+      if (key === currentKey) baseRowIndex = i;
+      else break;
+    }
+
+    let uniqueCount = 0;
+    let prevKey = '';
+    for (let i = 0; i <= baseRowIndex; i++) {
+      const key = (rows[i][0] || '') + '||' + (rows[i][1] || '');
+      if (key !== prevKey) { uniqueCount++; prevKey = key; }
+    }
+
+    const suffixIndex = rowIndex - baseRowIndex;
+    const suffix = suffixIndex === 0 ? '' : String.fromCharCode(96 + suffixIndex);
+
+    return currentSection.number + '.' + uniqueCount + suffix;
+  }
+
   const progressText = useMemo(() => {
     return `Capítulo ${currentIndex + 1} de ${sections.length}`;
   }, [currentIndex, sections.length]);
@@ -759,6 +783,32 @@ export default function NovoProcedimento() {
                 ? updatedRows
                 : [getDefaultTableRow(section.number, section.table.columns.length)],
           },
+        };
+      })
+    );
+  }
+
+  function duplicateTableRow(sectionIndex: number, rowIndex: number) {
+    if (isApprovedLocked) return;
+    setSections((prev) =>
+      prev.map((section, i) => {
+        if (i !== sectionIndex || !section.table) return section;
+        const sourceRow = [...section.table.rows[rowIndex]];
+        const newRow = [
+          sourceRow[0] || '',
+          sourceRow[1] || '',
+          sourceRow[2] || '',
+          sourceRow[3] || '',
+          '',
+        ];
+        const updatedRows = [
+          ...section.table.rows.slice(0, rowIndex + 1),
+          newRow,
+          ...section.table.rows.slice(rowIndex + 1),
+        ];
+        return {
+          ...section,
+          table: { ...section.table, rows: updatedRows },
         };
       })
     );
@@ -1195,6 +1245,9 @@ export default function NovoProcedimento() {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="border-b bg-slate-50">
+                      {(isEvidenceSection || isCopSection) && (
+                        <th className="p-2 w-16 text-center text-muted-foreground font-semibold bg-slate-100">N°</th>
+                      )}
                       {currentSection.table.columns.map((column, columnIndex) => (
                         <th key={columnIndex} className="p-2 min-w-[160px]">
                           <input
@@ -1207,7 +1260,7 @@ export default function NovoProcedimento() {
                                 e.target.value
                               )
                             }
-                            disabled={isEvidenceSection || isApprovedLocked}
+                            disabled={isEvidenceSection || isCopSection || isApprovedLocked}
                           />
                         </th>
                       ))}
@@ -1223,6 +1276,13 @@ export default function NovoProcedimento() {
 
                       return (
                         <tr key={rowIndex} className="border-b align-top">
+                          {(isEvidenceSection || isCopSection) && (
+                            <td className="p-2 w-16 text-center bg-slate-50 text-muted-foreground text-xs font-mono select-none">
+                              {isEvidenceSection
+                                ? getRowLabel(currentSection.table!.rows, rowIndex)
+                                : `${currentSection.number}.${rowIndex + 1}`}
+                            </td>
+                          )}
                           {currentSection.table?.columns.map((_, columnIndex) => (
                             <td key={columnIndex} className="p-2">
                               {isEvidenceSection && columnIndex === 4 ? (
@@ -1235,13 +1295,30 @@ export default function NovoProcedimento() {
                                   }
                                 >
                                   <option value="">— Selecione item COP —</option>
-                                  {copReqs.map((req) => (
+                                  {[...copReqs].sort((a, b) => a.code.localeCompare(b.code)).map((req) => (
                                     <option key={req.code} value={req.code}>
                                       {req.code} — {req.description?.substring(0, 40)}
                                     </option>
                                   ))}
                                 </select>
-                              ) : (
+                              ) : isCopSection && columnIndex === 4 ? (() => {
+                                const itemCop = workingRow[0]?.trim();
+                                const req = copReqs.find(r => r.code === itemCop);
+                                const status = req?.status;
+                                const label = status === 'atendido' ? 'Atendido'
+                                  : status === 'parcial' ? 'Parcial'
+                                  : status === 'nao_atendido' ? 'Não Atendido'
+                                  : '—';
+                                const color = status === 'atendido' ? 'bg-green-100 text-green-800'
+                                  : status === 'parcial' ? 'bg-yellow-100 text-yellow-800'
+                                  : status === 'nao_atendido' ? 'bg-red-100 text-red-800'
+                                  : 'bg-gray-100 text-gray-500';
+                                return (
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${color}`}>
+                                    {label}
+                                  </span>
+                                );
+                              })() : (
                                 <textarea
                                   className="w-full border rounded-md px-2 py-1 min-h-[70px]"
                                   value={workingRow[columnIndex] || ""}
@@ -1260,14 +1337,27 @@ export default function NovoProcedimento() {
                           ))}
 
                           <td className="p-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => removeTableRow(currentIndex, rowIndex)}
-                              disabled={isApprovedLocked}
-                            >
-                              Remover
-                            </Button>
+                            <div className="flex flex-col gap-1">
+                              {isEvidenceSection && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => duplicateTableRow(currentIndex, rowIndex)}
+                                  disabled={isApprovedLocked}
+                                  className="text-xs"
+                                >
+                                  Duplicar
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => removeTableRow(currentIndex, rowIndex)}
+                                disabled={isApprovedLocked}
+                              >
+                                Remover
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       );

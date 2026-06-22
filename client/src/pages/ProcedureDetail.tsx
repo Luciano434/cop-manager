@@ -415,10 +415,35 @@ function renderStructuredText(content?: ImportedSectionContent) {
   return <div className="space-y-3">{elements}</div>;
 }
 
-function renderTable(table?: ImportedTable, sectionNumber?: number) {
+function getCapSixRowLabel(rows: string[][], rowIndex: number, sectionNumber: number): string {
+  const currentRow = rows[rowIndex];
+  const currentKey = (currentRow[0] || '') + '||' + (currentRow[1] || '');
+
+  let baseRowIndex = rowIndex;
+  for (let i = rowIndex - 1; i >= 0; i--) {
+    const key = (rows[i][0] || '') + '||' + (rows[i][1] || '');
+    if (key === currentKey) baseRowIndex = i;
+    else break;
+  }
+
+  let uniqueCount = 0;
+  let prevKey = '';
+  for (let i = 0; i <= baseRowIndex; i++) {
+    const key = (rows[i][0] || '') + '||' + (rows[i][1] || '');
+    if (key !== prevKey) { uniqueCount++; prevKey = key; }
+  }
+
+  const suffixIndex = rowIndex - baseRowIndex;
+  const suffix = suffixIndex === 0 ? '' : String.fromCharCode(96 + suffixIndex);
+
+  return sectionNumber + '.' + uniqueCount + suffix;
+}
+
+function renderTable(table?: ImportedTable, sectionNumber?: number, copReqs: any[] = []) {
   if (!isValidTable(table)) return null;
 
   const isEvidenceTable = sectionNumber === 6;
+  const isCap7Table = sectionNumber === 7;
 
   let columns = table!.columns;
   let rows = table!.rows;
@@ -465,10 +490,35 @@ function renderTable(table?: ImportedTable, sectionNumber?: number) {
                 let value = row[colIndex] ?? "-";
 
 if (isEvidenceTable && colIndex === 0) {
-  value = `6.${rowIndex + 1} — ${value}`;
+  const label = getCapSixRowLabel(rows as string[][], rowIndex, 6);
+  value = `${label} — ${value}`;
+}
+if (isCap7Table && colIndex === 0) {
+  value = `7.${rowIndex + 1} — ${value}`;
 }
 
                 
+                if (isCap7Table && colIndex === 4) {
+                  const itemCop = String(row[0] || '').trim();
+                  const req = copReqs.find((r: any) => r.code === itemCop);
+                  const status = req?.status;
+                  const label = status === 'atendido' ? 'Atendido'
+                    : status === 'parcial' ? 'Parcial'
+                    : status === 'nao_atendido' ? 'Não Atendido'
+                    : value || '—';
+                  const color = status === 'atendido' ? 'bg-green-100 text-green-800'
+                    : status === 'parcial' ? 'bg-yellow-100 text-yellow-800'
+                    : status === 'nao_atendido' ? 'bg-red-100 text-red-800'
+                    : 'bg-gray-100 text-gray-500';
+                  return (
+                    <td key={colIndex} className="p-2">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${color}`}>
+                        {label}
+                      </span>
+                    </td>
+                  );
+                }
+
                 return (
                   <td key={colIndex} className="p-2 break-words">
                     {value}
@@ -1311,6 +1361,7 @@ export default function ProcedureDetail() {
     { id: dbProcedure?.id ?? 0 },
     { enabled: !!dbProcedure?.id }
   );
+  const { data: copReqs = [] } = trpc.copRequirements.list.useQuery();
   const updateProcedureMutation = trpc.procedures.update.useMutation();
   const deleteProcedureMutation = trpc.procedures.delete.useMutation();
   const utils = trpc.useUtils();
@@ -2425,7 +2476,7 @@ disabled={!["ADMIN", "QUALIDADE"].includes(currentUser.role)}
           >
             <div className="mt-4 space-y-4">
               {isTableSection
-                ? renderTable(section.table, section.order)
+                ? renderTable(section.table, section.order, copReqs)
                 : renderStructuredText(section.content)}
 
               {!isProcessSection &&
