@@ -1,442 +1,263 @@
-import { useMemo } from "react";
-import { useLocation } from "wouter";
+import React, { useState } from "react";
+import { trpc } from "@/lib/trpc";
+import { normalizeProcedureCode, normalizeRevision } from "@/lib/utils-cop";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { FileText, Printer } from "lucide-react";
-import { normalizeProcedureCode } from "@/lib/utils-cop";
+import { FileText, Printer, ChevronDown, ChevronRight } from "lucide-react";
 
-type EvidenciaStatus = "OK" | "NOK" | "PARCIAL" | "PENDENTE" | "NA";
+function normalizeText(v: unknown) {
+  return String(v || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
 
-type EvidenciaLS = {
-  id: number | string;
-  cprCode: string;
-  revision?: string;
-  requirementId: string;
-  status: EvidenciaStatus;
-  evidences?: string[];
-  registros?: string[];
-  responsible?: string;
-  updatedAt?: string;
-  observacao?: string;
-  requisito?: string;
-};
+function normalizeFamily(v: unknown): string {
+  const s = normalizeText(v);
+  if (!s) return "A classificar";
+  if (s.includes("projeto")) return "Controle de Projeto";
+  if (s.includes("material")) return "Controle de Materiais";
+  if (s.includes("producao")) return "Controle de Produção";
+  if (s.includes("liberacao")) return "Liberação Final";
+  if (s.includes("aeronavegabilidade")) return "Aeronavegabilidade Continuada";
+  if (s.includes("gestao") || s.includes("organizacional")) return "Gestão Organizacional";
+  return "A classificar";
+}
 
-function readEvidences(): EvidenciaLS[] {
-  try {
-    const raw = localStorage.getItem("evidences");
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+function statusBadgeClass(status: string): string {
+  switch (status) {
+    case "OK":      return "bg-green-100 text-green-800";
+    case "NOK":     return "bg-red-100 text-red-800";
+    case "PARCIAL": return "bg-orange-100 text-orange-800";
+    case "NA":      return "bg-slate-100 text-slate-600";
+    default:        return "bg-yellow-100 text-yellow-800";
   }
 }
 
-function readProcedures(): any[] {
-  try {
-    const raw = localStorage.getItem("customProcedures");
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+function isValidRow(row: unknown): row is string[] {
+  if (!Array.isArray(row)) return false;
+  if (!String(row[0] || "").trim()) return false;
+  const joined = row.join(" ").toLowerCase();
+  if (joined.includes("requisito") && joined.includes("evid")) return false;
+  return true;
 }
 
-function getProcedureName(code: string, procedures: any[]) {
-  const normalizedCode = normalizeProcedureCode(code);
+function CprDetailCard({ procedure, expanded }: { procedure: any; expanded: boolean }) {
+  const cprCode = normalizeProcedureCode(procedure.code);
+  const revision = normalizeRevision((procedure as any).revision || "00");
 
-  const found = procedures.find(
-    (p) => normalizeProcedureCode(String(p.code || "")) === normalizedCode
+  const { data: sectionsData } = trpc.procedures.getSections.useQuery(
+    { id: procedure.id },
+    { enabled: expanded && !!procedure.id }
   );
 
-  return String(found?.name || found?.title || normalizedCode);
-}
+  const { data: verifications = [] } = trpc.evidenceVerifications.listByCpr.useQuery(
+    { cprCode, revision },
+    { enabled: expanded && !!cprCode }
+  );
 
-function hasObjectiveEvidence(ev: EvidenciaLS) {
-  return Boolean(ev.evidences?.[0]?.trim()) || Boolean(ev.registros?.[0]?.trim());
-}
+  const sections: any[] = Array.isArray(sectionsData) ? sectionsData : [];
+  const cap6 = sections.find((s: any) => s.number === 6 || s.number === "6");
+  const rows: unknown[] = cap6?.table?.rows ?? [];
+  const validRows = rows.filter(isValidRow);
 
-function statusLabel(status: string) {
-  const map: Record<string, string> = {
-    OK: "Atendido",
-    PARCIAL: "Parcial",
-    NOK: "Não Atendido",
-    PENDENTE: "Pendente",
-    NA: "Não aplicável",
-  };
+  const totalReqs = validRows.length;
+  const atendidos = verifications.filter((v) => v.status === "OK").length;
+  const pct = totalReqs > 0 ? Math.round((atendidos / totalReqs) * 100) : 0;
 
-  return map[status] || status;
+  if (!expanded) return null;
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="flex items-center gap-4 text-sm">
+        <span className="text-muted-foreground">Rev. {revision}</span>
+        <span className="font-medium">{atendidos}/{totalReqs} requisitos atendidos</span>
+        <span className="font-bold text-accent">{pct}%</span>
+      </div>
+
+      <Progress value={pct} className="h-2" />
+
+      {validRows.length === 0 ? (
+        <p className="text-sm text-muted-foreground italic py-2">
+          Nenhuma linha no Cap. 6 cadastrada.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="border-b bg-slate-50 text-left">
+                <th className="p-1.5 font-semibold w-10">#</th>
+                <th className="p-1.5 font-semibold">Requisito</th>
+                <th className="p-1.5 font-semibold">Evidência Esperada</th>
+                <th className="p-1.5 font-semibold">Evidência Apresentada</th>
+                <th className="p-1.5 font-semibold">Registro</th>
+                <th className="p-1.5 font-semibold">Responsável</th>
+                <th className="p-1.5 font-semibold">Item COP</th>
+                <th className="p-1.5 font-semibold">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {validRows.map((row, i) => {
+                const reqId = `6.${i + 1}`;
+                const ver = verifications.find((v) => v.requirementId === reqId);
+                return (
+                  <React.Fragment key={reqId}>
+                    <tr className="border-b align-top hover:bg-slate-50">
+                      <td className="p-1.5 font-mono text-muted-foreground">{reqId}</td>
+                      <td className="p-1.5">{String(row[0] || "").trim()}</td>
+                      <td className="p-1.5 text-muted-foreground">{String(row[1] || "").trim() || "—"}</td>
+                      <td className="p-1.5">{ver?.evidenceText || <span className="text-muted-foreground">—</span>}</td>
+                      <td className="p-1.5">{ver?.registroText || <span className="text-muted-foreground">—</span>}</td>
+                      <td className="p-1.5">{ver?.responsible || "—"}</td>
+                      <td className="p-1.5 font-mono">{String(row[4] || "").trim() || "—"}</td>
+                      <td className="p-1.5">
+                        <span className={`px-1.5 py-0.5 rounded font-medium ${statusBadgeClass(ver?.status ?? "PENDENTE")}`}>
+                          {ver?.status ?? "PENDENTE"}
+                        </span>
+                      </td>
+                    </tr>
+                    {ver?.observacao && (
+                      <tr className="border-b bg-yellow-50">
+                        <td className="p-1.5" />
+                        <td colSpan={7} className="p-1.5 text-yellow-800">
+                          <span className="font-medium">Obs:</span> {ver.observacao}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function RelatorioAuditoria() {
-  const [, setLocation] = useLocation();
+  const { data: procedures = [], isLoading: loadingProcs } = trpc.procedures.list.useQuery();
+  const { data: copReqs = [] } = trpc.copRequirements.list.useQuery();
 
-  const evidencias = useMemo(() => readEvidences(), []);
-  const procedures = useMemo(() => readProcedures(), []);
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const allExpanded = procedures.length > 0 && expandedIds.size === procedures.length;
 
-  const validEvidencias = useMemo(() => {
-    return evidencias.filter((ev) => String(ev.requirementId || "").includes("6."));
-  }, [evidencias]);
+  function toggleAll() {
+    if (allExpanded) {
+      setExpandedIds(new Set());
+    } else {
+      setExpandedIds(new Set(procedures.map((p) => p.id)));
+    }
+  }
 
-  const stats = useMemo(() => {
-    const total = validEvidencias.length;
-
-    const atendido = validEvidencias.filter(
-      (ev) => (ev.status === "OK" || ev.status === "NA") && hasObjectiveEvidence(ev)
-    ).length;
-
-    const parcial = validEvidencias.filter((ev) => ev.status === "PARCIAL").length;
-
-    const naoAtendido = validEvidencias.filter(
-      (ev) =>
-        ev.status === "NOK" ||
-        ev.status === "PENDENTE" ||
-        (ev.status === "OK" && !hasObjectiveEvidence(ev))
-    ).length;
-
-    const conformidade =
-      total > 0 ? Math.round(((atendido + parcial * 0.5) / total) * 100) : 0;
-
-    return {
-      total,
-      atendido,
-      parcial,
-      naoAtendido,
-      conformidade,
-    };
-  }, [validEvidencias]);
-
-  const requisitosCriticos = useMemo(() => {
-    return validEvidencias.filter(
-      (ev) =>
-        ev.status === "NOK" ||
-        ev.status === "PENDENTE" ||
-        ev.status === "PARCIAL" ||
-        (ev.status === "OK" && !hasObjectiveEvidence(ev))
-    );
-  }, [validEvidencias]);
-
-  const evidenciasPendentes = useMemo(() => {
-    return validEvidencias.filter(
-      (ev) =>
-        ev.status === "PENDENTE" ||
-        ev.status === "PARCIAL" ||
-        (ev.status === "OK" && !hasObjectiveEvidence(ev))
-    );
-  }, [validEvidencias]);
-
-  const uniqueProcedures = new Set(
-    validEvidencias.map((ev) => normalizeProcedureCode(ev.cprCode)).filter(Boolean)
-  );
+  function toggle(id: number) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   const dataRelatorio = new Date().toLocaleDateString("pt-BR");
 
-  const imprimirRelatorio = () => {
-    window.print();
-  };
+  if (loadingProcs) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando...</div>;
+  }
 
   return (
     <>
       <style>{`
-  @media print {
-    .no-print {
-      display: none !important;
-    }
+        @media print {
+          .no-print { display: none !important; }
+          aside, header { display: none !important; }
+          html, body, #root { background: white !important; height: auto !important; overflow: visible !important; }
+          main { display: block !important; height: auto !important; overflow: visible !important; }
+          .print-container { max-width: 100% !important; padding: 0 !important; }
+          * { overflow: visible !important; }
+          .page-break { page-break-before: always; }
+          @page { size: A4 landscape; margin: 8mm; }
+        }
+      `}</style>
 
-    aside,
-    header {
-      display: none !important;
-    }
+      <div className="min-h-screen bg-background p-4 md:p-6">
+        <div className="max-w-7xl mx-auto space-y-4 print-container">
 
-    html,
-    body,
-    #root {
-      background: white !important;
-      height: auto !important;
-      min-height: auto !important;
-      overflow: visible !important;
-    }
-
-    main {
-      height: auto !important;
-      min-height: auto !important;
-      overflow: visible !important;
-      display: block !important;
-    }
-
-    .print-container {
-      max-width: 100% !important;
-      width: 100% !important;
-      padding: 0 !important;
-      margin: 0 !important;
-      overflow: visible !important;
-      height: auto !important;
-    }
-
-    .print-card {
-      box-shadow: none !important;
-      border: 1px solid #d4d4d8 !important;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-
-    .print-section {
-      break-inside: auto !important;
-      page-break-inside: auto !important;
-    }
-
-    * {
-      overflow: visible !important;
-    }
-
-    @page {
-      size: A4 portrait;
-      margin: 12mm;
-    }
-  }
-`}</style>
-
-      <div className="min-h-screen bg-background p-4 md:p-8">
-        <div className="max-w-7xl mx-auto space-y-8 print-container">
-          <div className="no-print flex items-center justify-between gap-4">
-            <button
-              onClick={() => setLocation("/dashboard-cop")}
-              className="text-sm text-accent hover:underline"
-            >
-              ← Voltar ao Dashboard
-            </button>
-
-            <Button onClick={imprimirRelatorio} className="gap-2">
-              <Printer className="w-4 h-4" />
-              Exportar / Imprimir PDF
-            </Button>
-          </div>
-
-          <Card className="p-8 print-card">
-            <div className="flex items-start justify-between gap-6">
+          {/* Cabeçalho */}
+          <Card className="p-6">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <div className="flex items-center gap-3 mb-3">
-                  <FileText className="w-8 h-8 text-accent" />
-                  <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-                    Relatório de Auditoria COP
-                  </h1>
+                <div className="flex items-center gap-3 mb-1">
+                  <FileText className="w-6 h-6 text-accent" />
+                  <h1 className="text-2xl font-bold">Relatório Detalhado de Conformidade COP</h1>
                 </div>
-
-                <p className="text-muted-foreground">
-                  Visão executiva da conformidade dos CPRs com base nas
-                  Evidências Objetivas registradas no Item 6.
-                </p>
+                <p className="text-sm text-muted-foreground">Gerado em {dataRelatorio} · {procedures.length} CPR(s)</p>
               </div>
-
-              <div className="text-right text-sm text-muted-foreground">
-                <p>
-                  <span className="font-medium text-foreground">Data:</span>{" "}
-                  {dataRelatorio}
-                </p>
-                <p>
-                  <span className="font-medium text-foreground">CPRs:</span>{" "}
-                  {uniqueProcedures.size}
-                </p>
-                <p>
-                  <span className="font-medium text-foreground">
-                    Evidências:
-                  </span>{" "}
-                  {validEvidencias.length}
-                </p>
+              <div className="no-print flex gap-2">
+                <Button variant="outline" onClick={toggleAll}>
+                  {allExpanded ? "Recolher todos" : "Expandir todos"}
+                </Button>
+                <Button onClick={() => window.print()} className="gap-2">
+                  <Printer className="w-4 h-4" /> Imprimir
+                </Button>
               </div>
             </div>
           </Card>
 
-          <div className="grid md:grid-cols-4 gap-4 print-section">
-            <Card className="p-6 text-center print-card">
-              <p className="text-sm text-muted-foreground">Total Requisitos</p>
-              <p className="text-3xl font-bold text-foreground mt-2">
-                {stats.total}
-              </p>
+          {/* Cards por CPR */}
+          {procedures.length === 0 ? (
+            <Card className="p-8 text-center text-muted-foreground">
+              Nenhum CPR cadastrado.
             </Card>
+          ) : (
+            procedures.map((proc, idx) => {
+              const isExpanded = expandedIds.has(proc.id);
+              const cprCode = normalizeProcedureCode(proc.code);
+              const procReqs = copReqs.filter(
+                (r) => normalizeProcedureCode(r.procedureCode || "") === cprCode
+              );
+              const atendidos = procReqs.filter((r) => r.status === "atendido").length;
+              const total = procReqs.length;
+              const pct = total > 0 ? Math.round((atendidos / total) * 100) : 0;
+              const family = normalizeFamily(proc.family);
 
-            <Card className="p-6 text-center print-card">
-              <p className="text-sm text-muted-foreground">Atendidos</p>
-              <p className="text-3xl font-bold text-green-600 mt-2">
-                {stats.atendido}
-              </p>
-            </Card>
-
-            <Card className="p-6 text-center print-card">
-              <p className="text-sm text-muted-foreground">Parciais</p>
-              <p className="text-3xl font-bold text-yellow-600 mt-2">
-                {stats.parcial}
-              </p>
-            </Card>
-
-            <Card className="p-6 text-center print-card">
-              <p className="text-sm text-muted-foreground">Não Atendidos</p>
-              <p className="text-3xl font-bold text-red-600 mt-2">
-                {stats.naoAtendido}
-              </p>
-            </Card>
-          </div>
-
-          <Card className="p-6 print-card print-section">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xl font-semibold text-foreground">
-                Conformidade Geral
-              </h2>
-              <span className="text-2xl font-bold text-accent">
-                {stats.conformidade}%
-              </span>
-            </div>
-
-            <Progress value={stats.conformidade} className="h-3" />
-
-            <p className="text-sm text-muted-foreground mt-4">
-              Cálculo: requisitos OK com evidência/registro contam integralmente;
-              requisitos parciais contam com peso intermediário; pendentes, NOK
-              ou OK sem comprovação não contam como conformes.
-            </p>
-          </Card>
-
-          <Card className="p-6 print-card print-section">
-            <h2 className="text-xl font-semibold text-foreground mb-4">
-              Resumo Executivo
-            </h2>
-
-            <p className="text-muted-foreground leading-relaxed">
-              O sistema apresenta atualmente{" "}
-              <strong>{stats.conformidade}%</strong> de conformidade geral nas
-              Evidências Objetivas monitoradas. Há{" "}
-              <strong>{stats.atendido}</strong> requisito(s) atendido(s),{" "}
-              <strong>{stats.parcial}</strong> parcial(is) e{" "}
-              <strong>{stats.naoAtendido}</strong> não atendido(s) ou pendente(s).
-            </p>
-          </Card>
-
-          <Card className="p-6 print-card print-section">
-            <h2 className="text-xl font-semibold text-foreground mb-4">
-              Requisitos Críticos
-            </h2>
-
-            {requisitosCriticos.length === 0 ? (
-              <p className="text-green-600 font-medium">
-                Todos os requisitos monitorados estão atendidos.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {requisitosCriticos.map((ev) => {
-                  const cprCode = normalizeProcedureCode(ev.cprCode);
-
-                  return (
-                    <div
-                      key={ev.id}
-                      className="border border-border rounded-md p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-mono font-bold">
-                            {cprCode} — {ev.requirementId}
-                          </span>
-
-                          <span
-                            className={`text-xs px-2 py-1 rounded ${
-                              ev.status === "PARCIAL"
-                                ? "bg-yellow-100 text-yellow-700"
-                                : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {statusLabel(ev.status)}
-                          </span>
-                        </div>
-
-                        <p className="text-sm text-muted-foreground">
-                          {getProcedureName(cprCode, procedures)}
-                        </p>
-
-                        <p className="text-sm text-muted-foreground">
-                          Requisito: {ev.requisito || ev.requirementId}
-                        </p>
-
-                        {ev.observacao && (
-                          <p className="text-sm text-muted-foreground">
-                            Observação: {ev.observacao}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="text-sm text-muted-foreground">
-                        Evidência:{" "}
-                        <span className="font-medium text-foreground">
-                          {hasObjectiveEvidence(ev) ? "registrada" : "pendente"}
-                        </span>
-                      </div>
+              return (
+                <Card key={proc.id} className={`p-4 ${idx > 0 ? "page-break" : ""}`}>
+                  <div
+                    className="flex items-center justify-between cursor-pointer select-none"
+                    onClick={() => toggle(proc.id)}
+                  >
+                    <div className="flex items-center gap-3 flex-wrap min-w-0">
+                      {isExpanded
+                        ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                        : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                      }
+                      <span className="font-mono font-bold shrink-0">{cprCode}</span>
+                      <span className="font-semibold truncate">{proc.name}</span>
+                      {family !== "A classificar" && (
+                        <span className="text-xs bg-slate-100 px-2 py-0.5 rounded shrink-0">{family}</span>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${
+                        proc.status === "implementado"
+                          ? "bg-green-100 text-green-700"
+                          : proc.status === "em_desenvolvimento"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-slate-100 text-slate-600"
+                      }`}>
+                        {proc.status === "implementado" ? "Implementado"
+                          : proc.status === "em_desenvolvimento" ? "Em desenvolvimento"
+                          : "Não iniciado"}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
-
-          <Card className="p-6 print-card print-section">
-            <h2 className="text-xl font-semibold text-foreground mb-4">
-              Evidências Pendentes
-            </h2>
-
-            {evidenciasPendentes.length === 0 ? (
-              <p className="text-green-600 font-medium">
-                Não há evidências pendentes de validação.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {evidenciasPendentes.map((ev) => {
-                  const cprCode = normalizeProcedureCode(ev.cprCode);
-
-                  return (
-                    <div
-                      key={ev.id}
-                      className="border border-border rounded-md p-4"
-                    >
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div>
-                          <p className="font-medium text-foreground">
-                            {cprCode} — {ev.requirementId}
-                          </p>
-
-                          <p className="text-sm text-muted-foreground">
-                            Procedimento: {getProcedureName(cprCode, procedures)}
-                          </p>
-
-                          <p className="text-sm text-muted-foreground">
-                            Evidência apresentada: {ev.evidences?.[0] || "-"}
-                          </p>
-
-                          <p className="text-sm text-muted-foreground">
-                            Registro apresentado: {ev.registros?.[0] || "-"}
-                          </p>
-                        </div>
-
-                        <span className="text-xs px-3 py-1 rounded bg-yellow-100 text-yellow-700 w-fit">
-                          {statusLabel(ev.status)}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-3 text-sm shrink-0 ml-4">
+                      <span className="text-muted-foreground">{atendidos}/{total}</span>
+                      <span className="font-bold text-accent w-10 text-right">{pct}%</span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
+                  </div>
 
-          <Card className="p-6 print-card print-section">
-            <h2 className="text-xl font-semibold text-foreground mb-4">
-              Conclusão da Auditoria
-            </h2>
+                  <CprDetailCard procedure={proc} expanded={isExpanded} />
+                </Card>
+              );
+            })
+          )}
 
-            <p className="text-muted-foreground leading-relaxed">
-              Recomenda-se tratar prioritariamente os requisitos classificados
-              como <strong>parciais</strong>, <strong>NOK</strong> ou{" "}
-              <strong>pendentes</strong>, bem como complementar evidências OK
-              sem comprovação documental. O relatório agora utiliza a mesma base
-              de dados do Dashboard COP e da Gestão de Evidências.
-            </p>
-          </Card>
         </div>
       </div>
     </>
