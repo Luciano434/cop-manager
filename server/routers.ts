@@ -45,6 +45,7 @@ import {
   getEvidenceVerificationCopCodes,
   getEvidenceVerificationsByCopCode,
   recalcCopRequirementStatus,
+  updateCopRequirementStatusByCode,
   getProcedureSections,
   updateProcedureSections,
 } from "./db";
@@ -450,12 +451,17 @@ export const appRouter = router({
         registroText: z.string().optional(),
         responsible: z.string().optional(),
         observacao: z.string().optional(),
+        copCode: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const savedId = await upsertEvidenceVerification({ ...input, updatedBy: ctx.user.id });
-        const linkedCodes = await getEvidenceVerificationCopCodes(savedId);
-        for (const code of linkedCodes) {
-          await recalcCopRequirementStatus(code, input.cprCode);
+        if (input.copCode) {
+          await updateCopRequirementStatusByCode(input.copCode, input.cprCode, input.status);
+        } else {
+          const linkedCodes = await getEvidenceVerificationCopCodes(savedId);
+          for (const code of linkedCodes) {
+            await recalcCopRequirementStatus(code, input.cprCode);
+          }
         }
         return savedId;
       }),

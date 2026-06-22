@@ -127,6 +127,8 @@ export default function Evidencias() {
       return;
     }
 
+    const req = requirements.find((r) => r.id === requirementId);
+
     setSaving((prev) => ({ ...prev, [requirementId]: true }));
     try {
       await upsertMutation.mutateAsync({
@@ -138,6 +140,7 @@ export default function Evidencias() {
         registroText: merged.registroText,
         responsible: merged.responsible,
         observacao: merged.observacao,
+        copCode: req?.copCode || undefined,
       });
       setLocalChanges((prev) => {
         const updated = { ...prev };

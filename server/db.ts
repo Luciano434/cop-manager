@@ -456,6 +456,29 @@ export async function recalcCopRequirementStatus(
     );
 }
 
+export async function updateCopRequirementStatusByCode(
+  copCode: string,
+  procedureCode: string,
+  evidenceStatus: string
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  const copStatus =
+    evidenceStatus === 'OK' ? 'atendido'
+    : evidenceStatus === 'NOK' || evidenceStatus === 'PARCIAL' ? 'parcial'
+    : 'nao_atendido';
+
+  await db.update(copRequirements)
+    .set({ status: copStatus as 'atendido' | 'parcial' | 'nao_atendido' })
+    .where(
+      and(
+        eq(copRequirements.code, copCode),
+        eq(copRequirements.procedureCode, procedureCode)
+      )
+    );
+}
+
 export function normalizeCopCode(code: string): string {
   const trimmed = code.trim();
   if (/\(\d+\)$/.test(trimmed)) return trimmed;
