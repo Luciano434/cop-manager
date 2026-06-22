@@ -11,7 +11,7 @@
 cd "C:\Users\meeti\OneDrive\Documentos\00-RL Consultoria\3-CLIENTES\1-PROJETOS\13-APP-CERT_COP"
 pnpm dev
 Acesse: http://localhost:3000
-Login: luciano / Tecplas@2024
+Login: luciano / [senha mantida em segredo — não registrar aqui]
 
 ## Estado atual (Junho 2026)
 Todas as 6 fases implementadas:
@@ -21,6 +21,11 @@ Todas as 6 fases implementadas:
 - Fase 4: Vinculo evidencias → itens COP automático
 - Fase 5: Dashboard com conformidade real
 - Fase 6: Relatório Executivo e Detalhado
+
+## Progresso dos CPRs
+- CPR-01: completo ✅
+- CPR-02: completo ✅ (29 linhas Cap.6, 16 itens COP vinculados)
+- CPR-03 a CPR-16: pendentes
 
 ## Banco de dados (6 tabelas principais)
 - users: autenticação local
