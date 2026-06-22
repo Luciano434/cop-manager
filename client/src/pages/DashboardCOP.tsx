@@ -137,7 +137,7 @@ function buildFamilyStats(evidenceItems: EvidenceItem[]): FamilyStats[] {
     const current = familyMap.get(family)!;
     current.total += 1;
 
-    if (item.status === "OK" && hasObjectiveEvidence(item)) {
+    if (item.status === "OK") {
       current.ok += 1;
     } else if (item.status === "NOK") {
       current.nok += 1;
@@ -194,7 +194,7 @@ function buildProcedureStats(evidenceItems: EvidenceItem[]): ProcedureStats[] {
     const current = procedureMap.get(key)!;
     current.total += 1;
 
-    if (item.status === "OK" && hasObjectiveEvidence(item)) {
+    if (item.status === "OK") {
       current.ok += 1;
     } else if (item.status === "NOK") {
       current.nok += 1;
@@ -327,7 +327,7 @@ export default function DashboardCOP() {
     let pendente = 0;
 
     evidenceItems.forEach((item) => {
-      if (item.status === "OK" && hasObjectiveEvidence(item)) {
+      if (item.status === "OK") {
         ok += 1;
       } else if (item.status === "NOK") {
         nok += 1;
@@ -367,8 +367,7 @@ export default function DashboardCOP() {
       evidenceItems.filter(
         (item) =>
           item.status === "NOK" ||
-          item.status === "Pendente" ||
-          (item.status === "OK" && !hasObjectiveEvidence(item))
+          item.status === "Pendente"
       ),
     [evidenceItems]
   );
@@ -710,12 +709,6 @@ export default function DashboardCOP() {
                             <Badge variant="secondary">{item.family}</Badge>
                           )}
 
-                          {item.status === "OK" &&
-                            !hasObjectiveEvidence(item) && (
-                              <Badge className="bg-yellow-100 text-yellow-800 border-0">
-                                OK sem comprovação
-                              </Badge>
-                            )}
                         </div>
 
                         {item.procedureName && (
