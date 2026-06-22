@@ -429,6 +429,7 @@ function renderTable(table?: ImportedTable, sectionNumber?: number) {
       "Evidência Objetiva Esperada",
       "Registro Associado",
       "Forma de Verificação",
+      "Item COP",
     ];
 
     rows = table!.rows.map((row) => {
@@ -439,6 +440,7 @@ function renderTable(table?: ImportedTable, sectionNumber?: number) {
         r[1] || "",
         r[2] || "",
         r[3] || "",
+        r[4] || "—",
       ];
     });
   }

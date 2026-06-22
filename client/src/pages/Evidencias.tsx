@@ -87,6 +87,7 @@ export default function Evidencias() {
       evidenciaEsperada: String(row[1] || "").trim(),
       registroEsperado: String(row[2] || "").trim(),
       verificacaoEsperada: String(row[3] || "").trim(),
+      copCode: String(row[4] || "").trim(),
     }));
   }
 
@@ -194,6 +195,11 @@ export default function Evidencias() {
                     <p className="text-sm text-gray-600"><span className="font-medium">Evidência esperada:</span> {req.evidenciaEsperada || "-"}</p>
                     <p className="text-sm text-gray-600"><span className="font-medium">Registro esperado:</span> {req.registroEsperado || "-"}</p>
                     <p className="text-sm text-gray-600"><span className="font-medium">Forma de verificação:</span> {req.verificacaoEsperada || "-"}</p>
+                    {req.copCode && (
+                      <p className="text-xs text-blue-600 font-medium">
+                        Item COP: {req.copCode}
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-3">

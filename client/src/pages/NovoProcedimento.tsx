@@ -56,8 +56,9 @@ const DEFAULT_EVIDENCE_TABLE: SectionTable = {
     "Evidência Objetiva Esperada",
     "Registro Associado",
     "Forma de Verificação",
+    "Item COP",
   ],
-  rows: [["", "", "", ""]],
+  rows: [["", "", "", "", ""]],
 };
 
 const DEFAULT_RECORDS_TABLE: SectionTable = {
@@ -84,7 +85,7 @@ function cloneTable(table: SectionTable): SectionTable {
 }
 
 function getDefaultEvidenceRow(): string[] {
-  return ["", "", "", ""];
+  return ["", "", "", "", ""];
 }
 
 function getDefaultTableRow(sectionNumber: number, columnCount: number): string[] {
@@ -102,6 +103,7 @@ function normalizeEvidenceRow(row: any[]): string[] {
     normalized[1] || "",
     normalized[2] || "",
     normalized[3] || "",
+    normalized[4] || "",
   ];
 }
 
@@ -269,15 +271,22 @@ function loadSectionsFromCache(code: string): Section[] {
     if (!raw) return createEmptySections();
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length === SECTION_TITLES.length) {
-      return parsed.map((s: any, index: number): Section => ({
-        number: Number(s.number ?? index + 1),
-        title: String(s.title ?? SECTION_TITLES[index] ?? ""),
-        content: String(s.content ?? ""),
-        hasSubitems: Boolean(s.hasSubitems),
-        subitems: Array.isArray(s.subitems) ? s.subitems : [],
-        mode: (s.mode === "table" ? "table" : "text") as SectionMode,
-        table: s.table,
-      }));
+      return parsed.map((s: any, index: number): Section => {
+        const sectionNumber = Number(s.number ?? index + 1);
+        const needsNormalize = sectionNumber === 4 || sectionNumber === 6 || sectionNumber === 7;
+        const table = needsNormalize
+          ? normalizeTableForSection(sectionNumber, s.table)
+          : s.table;
+        return {
+          number: sectionNumber,
+          title: String(s.title ?? SECTION_TITLES[index] ?? ""),
+          content: String(s.content ?? ""),
+          hasSubitems: Boolean(s.hasSubitems),
+          subitems: Array.isArray(s.subitems) ? s.subitems : [],
+          mode: (s.mode === "table" ? "table" : "text") as SectionMode,
+          table,
+        };
+      });
     }
     return createEmptySections();
   } catch {
@@ -458,6 +467,7 @@ export default function NovoProcedimento() {
   const updateProcedureMutation = trpc.procedures.update.useMutation();
   const updateSectionsMutation = trpc.procedures.updateSections.useMutation();
   const utils = trpc.useUtils();
+  const { data: copReqs = [] } = trpc.copRequirements.list.useQuery();
   const initializedForRef = useRef<string | null>(null);
 
   const [isEditMode, setIsEditMode] = useState(false);
@@ -522,8 +532,29 @@ export default function NovoProcedimento() {
       setStatus(dbProc.status);
       setRevision("00");
       setFamily(normalizeFamily((dbProc as any).family || inferFamilyFromProcedure(loadedCode, dbProc.name)));
-      setSections(loadSectionsFromCache(loadedCode));
       setCurrentIndex(0);
+      void (async () => {
+        const dbSects = await utils.procedures.getSections.fetch({ id: dbProc.id });
+        if (Array.isArray(dbSects) && dbSects.length > 0) {
+          const normalized = dbSects.map((s: any, idx: number): Section => ({
+            number: Number(s.number ?? idx + 1),
+            title: String(s.title ?? SECTION_TITLES[idx] ?? ""),
+            content: String(s.content ?? ""),
+            hasSubitems: Boolean(s.hasSubitems),
+            subitems: Array.isArray(s.subitems) ? s.subitems : [],
+            mode: (s.mode === "table" ? "table" : "text") as SectionMode,
+            table: s.table,
+          }));
+          setSections(normalized.map((s) => ({
+            ...s,
+            table: (s.number === 4 || s.number === 6 || s.number === 7)
+              ? normalizeTableForSection(s.number, s.table) ?? s.table
+              : s.table,
+          })));
+        } else {
+          setSections(loadSectionsFromCache(loadedCode));
+        }
+      })();
       return;
     }
 
@@ -674,11 +705,6 @@ export default function NovoProcedimento() {
 
           return workingRow.map((cell, cIdx) => {
             if (cIdx !== columnIndex) return cell;
-
-            if (isSection6 && columnIndex === 4) {
-              return normalizeEvidenceStatus(value);
-            }
-
             return value;
           });
         });
@@ -850,11 +876,7 @@ export default function NovoProcedimento() {
         baseSection.table = {
           columns: (normalizedTable?.columns || []).map((col) => col.trim()),
           rows: (normalizedTable?.rows || []).map((row) =>
-            row.map((cell, cellIndex) =>
-              isSection6 && cellIndex === 4
-                ? normalizeEvidenceStatus(cell)
-                : String(cell || "").trim()
-            )
+            row.map((cell) => String(cell || "").trim())
           ),
         };
       }
@@ -1206,38 +1228,19 @@ export default function NovoProcedimento() {
                               {isEvidenceSection && columnIndex === 4 ? (
                                 <select
                                   className="w-full border rounded-md px-2 py-2 min-h-[38px]"
-                                  value={normalizeEvidenceStatus(
-                                    workingRow[columnIndex] || "Pendente"
-                                  )}
+                                  value={workingRow[4] || ""}
                                   disabled={isApprovedLocked}
                                   onChange={(e) =>
-                                    updateTableCell(
-                                      currentIndex,
-                                      rowIndex,
-                                      columnIndex,
-                                      e.target.value
-                                    )
+                                    updateTableCell(currentIndex, rowIndex, 4, e.target.value)
                                   }
                                 >
-                                  <option value="Pendente">Pendente</option>
-                                  <option value="OK">OK</option>
-                                  <option value="NOK">NOK</option>
+                                  <option value="">— Selecione item COP —</option>
+                                  {copReqs.map((req) => (
+                                    <option key={req.code} value={req.code}>
+                                      {req.code} — {req.description?.substring(0, 40)}
+                                    </option>
+                                  ))}
                                 </select>
-                              ) : isEvidenceSection && columnIndex === 6 ? (
-                                <input
-                                  type="date"
-                                  className="w-full border rounded-md px-2 py-2 min-h-[38px]"
-                                  value={workingRow[columnIndex] || ""}
-                                  disabled={isApprovedLocked}
-                                  onChange={(e) =>
-                                    updateTableCell(
-                                      currentIndex,
-                                      rowIndex,
-                                      columnIndex,
-                                      e.target.value
-                                    )
-                                  }
-                                />
                               ) : (
                                 <textarea
                                   className="w-full border rounded-md px-2 py-1 min-h-[70px]"

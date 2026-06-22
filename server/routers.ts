@@ -41,6 +41,10 @@ import {
   updateUserPassword,
   getEvidenceVerifications,
   upsertEvidenceVerification,
+  updateEvidenceVerificationCopCodes,
+  getEvidenceVerificationCopCodes,
+  getEvidenceVerificationsByCopCode,
+  recalcCopRequirementStatus,
   getProcedureSections,
   updateProcedureSections,
 } from "./db";
@@ -448,7 +452,28 @@ export const appRouter = router({
         observacao: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        return upsertEvidenceVerification({ ...input, updatedBy: ctx.user.id });
+        const savedId = await upsertEvidenceVerification({ ...input, updatedBy: ctx.user.id });
+        const linkedCodes = await getEvidenceVerificationCopCodes(savedId);
+        for (const code of linkedCodes) {
+          await recalcCopRequirementStatus(code, input.cprCode);
+        }
+        return savedId;
+      }),
+
+    updateCopCodes: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        copCodes: z.array(z.string()),
+      }))
+      .mutation(async ({ input }) => {
+        await updateEvidenceVerificationCopCodes(input.id, input.copCodes);
+        return { success: true };
+      }),
+
+    listByCopCode: publicProcedure
+      .input(z.object({ copCode: z.string(), procedureCode: z.string() }))
+      .query(async ({ input }) => {
+        return getEvidenceVerificationsByCopCode(input.copCode, input.procedureCode);
       }),
   }),
 });

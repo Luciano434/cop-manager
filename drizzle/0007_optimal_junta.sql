@@ -1,0 +1,1 @@
+ALTER TABLE `evidence_verifications` ADD `copRequirementCodes` text;

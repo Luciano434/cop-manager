@@ -387,3 +387,77 @@ export async function upsertEvidenceVerification(data: {
     return (result[0] as any).insertId;
   }
 }
+
+export async function updateEvidenceVerificationCopCodes(
+  id: number,
+  copCodes: string[]
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(evidenceVerifications)
+    .set({ copRequirementCodes: JSON.stringify(copCodes) })
+    .where(eq(evidenceVerifications.id, id));
+}
+
+export async function getEvidenceVerificationCopCodes(id: number): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.select({ copRequirementCodes: evidenceVerifications.copRequirementCodes })
+    .from(evidenceVerifications)
+    .where(eq(evidenceVerifications.id, id))
+    .limit(1);
+  if (!result[0]?.copRequirementCodes) return [];
+  try {
+    const codes = JSON.parse(result[0].copRequirementCodes);
+    return Array.isArray(codes) ? codes : [];
+  } catch { return []; }
+}
+
+export async function getEvidenceVerificationsByCopCode(
+  copCode: string,
+  procedureCode: string
+): Promise<(typeof evidenceVerifications.$inferSelect)[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const all = await db.select().from(evidenceVerifications)
+    .where(eq(evidenceVerifications.cprCode, procedureCode));
+  return all.filter(ev => {
+    if (!ev.copRequirementCodes) return false;
+    try {
+      const codes = JSON.parse(ev.copRequirementCodes);
+      return Array.isArray(codes) && codes.includes(copCode);
+    } catch { return false; }
+  });
+}
+
+export async function recalcCopRequirementStatus(
+  copCode: string,
+  procedureCode: string
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const evs = await getEvidenceVerificationsByCopCode(copCode, procedureCode);
+
+  const hasOk      = evs.some(e => e.status === 'OK');
+  const hasNok     = evs.some(e => e.status === 'NOK');
+  const hasParcial = evs.some(e => e.status === 'PARCIAL');
+
+  let newStatus: 'atendido' | 'parcial' | 'nao_atendido' = 'nao_atendido';
+  if (hasOk && !hasNok) newStatus = 'atendido';
+  else if (hasParcial || (hasOk && hasNok)) newStatus = 'parcial';
+
+  await db.update(copRequirements)
+    .set({ status: newStatus })
+    .where(
+      and(
+        eq(copRequirements.code, copCode),
+        eq(copRequirements.procedureCode, procedureCode)
+      )
+    );
+}
+
+export function normalizeCopCode(code: string): string {
+  const trimmed = code.trim();
+  if (/\(\d+\)$/.test(trimmed)) return trimmed;
+  return trimmed + '(1)';
+}

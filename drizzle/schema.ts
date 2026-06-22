@@ -178,6 +178,7 @@ export const evidenceVerifications = mysqlTable("evidence_verifications", {
   registroText: text("registroText"),
   responsible: varchar("responsible", { length: 255 }),
   observacao: text("observacao"),
+  copRequirementCodes: text("copRequirementCodes"),
   updatedBy: int("updatedBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

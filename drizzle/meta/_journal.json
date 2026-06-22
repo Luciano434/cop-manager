@@ -50,6 +50,13 @@
       "when": 1781890024892,
       "tag": "0006_red_dust",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1781899921398,
+      "tag": "0007_optimal_junta",
+      "breakpoints": true
     }
   ]
 }

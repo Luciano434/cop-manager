@@ -280,10 +280,14 @@ export default function DashboardCOP() {
       const linkedProcedure =
         linkedProcedureId != null
           ? (procedureById.get(linkedProcedureId) ?? null)
-          : null;
+          : (procedures.find(
+              (p) =>
+                normalizeProcedureCode(p.code) ===
+                normalizeProcedureCode(req.procedureCode ?? "")
+            ) ?? null);
 
       const procedureCode = normalizeProcedureCode(
-        linkedProcedure?.code ?? ""
+        linkedProcedure?.code ?? req.procedureCode ?? ""
       );
       const procedureName = linkedProcedure?.name ?? "";
       const family = getFamilyFromProcedure(procedureCode, linkedProcedure);

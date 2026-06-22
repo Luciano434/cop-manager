@@ -26,6 +26,12 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { count, eq } from "drizzle-orm";
 import { copRequirements } from "../drizzle/schema";
 
+function normalizeCopCode(code: string): string {
+  const trimmed = code.trim();
+  if (/\(\d+\)$/.test(trimmed)) return trimmed;
+  return trimmed + '(1)';
+}
+
 // ---------------------------------------------------------------------------
 // Carregar PR-01.json (único procedimento com copMatrix completa)
 // ---------------------------------------------------------------------------
@@ -104,20 +110,20 @@ function req(
     verificationMethod: string;
   }
 ): RequirementSeed {
-  const extracted = fromCopMatrix(code) ?? fallback ?? {
+  const normalizedCode = normalizeCopCode(code);
+  const extracted = fromCopMatrix(normalizedCode) ?? fallback ?? {
     procedureCode: "",
     expectedEvidence: "",
     expectedRecord: "",
     verificationMethod: "",
   };
-  return { code, description, ...extracted };
+  return { code: normalizedCode, description, ...extracted };
 }
 
 const REQUIREMENTS: RequirementSeed[] = [
   // ── 1.A — Controle de Projeto (CPR-01) ──────────────────────────────────
   req("1.A.1",    "Controle de dados de projeto"),
   req("1.A.2",    "Gerenciamento de configuração"),
-  req("1.A.2(1)", "Uso de dados atualizados, corretos e aprovados"),
   req("1.A.2(2)", "Controle de emissão e recuperação de obsoletos"),
   req("1.A.2(3)", "Métodos para notificar mudanças"),
   req("1.A.2(4)", "Verificação de uso de dados aprovados na fabricação"),

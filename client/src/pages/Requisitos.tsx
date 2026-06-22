@@ -171,35 +171,13 @@ export default function Requisitos() {
                     </p>
                   )}
 
-                  {/* Campos detalhados */}
-                  {(req.expectedEvidence || req.expectedRecord || req.verificationMethod) && (
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 border-t pt-4">
-                      <div>
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                          Evidência esperada
-                        </p>
-                        <p className="text-sm text-foreground">
-                          {req.expectedEvidence || "—"}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                          Registro esperado
-                        </p>
-                        <p className="text-sm text-foreground">
-                          {req.expectedRecord || "—"}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                          Forma de verificação
-                        </p>
-                        <p className="text-sm text-foreground">
-                          {req.verificationMethod || "—"}
-                        </p>
-                      </div>
+                  {/* Evidência esperada */}
+                  {req.expectedEvidence && (
+                    <div className="mt-4 border-t pt-4 space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Evidência esperada
+                      </p>
+                      <p className="text-sm text-foreground">{req.expectedEvidence}</p>
                     </div>
                   )}
                 </Card>
