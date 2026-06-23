@@ -415,30 +415,6 @@ function renderStructuredText(content?: ImportedSectionContent) {
   return <div className="space-y-3">{elements}</div>;
 }
 
-function getCapSixRowLabel(rows: string[][], rowIndex: number, sectionNumber: number): string {
-  const currentRow = rows[rowIndex];
-  const currentKey = (currentRow[0] || '') + '||' + (currentRow[1] || '');
-
-  let baseRowIndex = rowIndex;
-  for (let i = rowIndex - 1; i >= 0; i--) {
-    const key = (rows[i][0] || '') + '||' + (rows[i][1] || '');
-    if (key === currentKey) baseRowIndex = i;
-    else break;
-  }
-
-  let uniqueCount = 0;
-  let prevKey = '';
-  for (let i = 0; i <= baseRowIndex; i++) {
-    const key = (rows[i][0] || '') + '||' + (rows[i][1] || '');
-    if (key !== prevKey) { uniqueCount++; prevKey = key; }
-  }
-
-  const suffixIndex = rowIndex - baseRowIndex;
-  const suffix = suffixIndex === 0 ? '' : String.fromCharCode(96 + suffixIndex);
-
-  return sectionNumber + '.' + uniqueCount + suffix;
-}
-
 function renderTable(table?: ImportedTable, sectionNumber?: number, copReqs: any[] = []) {
   if (!isValidTable(table)) return null;
 
@@ -490,8 +466,7 @@ function renderTable(table?: ImportedTable, sectionNumber?: number, copReqs: any
                 let value = row[colIndex] ?? "-";
 
 if (isEvidenceTable && colIndex === 0) {
-  const label = getCapSixRowLabel(rows as string[][], rowIndex, 6);
-  value = `${label} — ${value}`;
+  value = `6.${rowIndex + 1} — ${value}`;
 }
 if (isCap7Table && colIndex === 0) {
   value = `7.${rowIndex + 1} — ${value}`;

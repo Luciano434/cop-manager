@@ -492,30 +492,6 @@ export default function NovoProcedimento() {
   const isTableMode = currentSection.mode === "table";
   const isApprovedLocked = isEditMode && status === "implementado";
 
-  function getRowLabel(rows: any[][], rowIndex: number): string {
-    const currentRow = rows[rowIndex];
-    const currentKey = (currentRow[0] || '') + '||' + (currentRow[1] || '');
-
-    let baseRowIndex = rowIndex;
-    for (let i = rowIndex - 1; i >= 0; i--) {
-      const key = (rows[i][0] || '') + '||' + (rows[i][1] || '');
-      if (key === currentKey) baseRowIndex = i;
-      else break;
-    }
-
-    let uniqueCount = 0;
-    let prevKey = '';
-    for (let i = 0; i <= baseRowIndex; i++) {
-      const key = (rows[i][0] || '') + '||' + (rows[i][1] || '');
-      if (key !== prevKey) { uniqueCount++; prevKey = key; }
-    }
-
-    const suffixIndex = rowIndex - baseRowIndex;
-    const suffix = suffixIndex === 0 ? '' : String.fromCharCode(96 + suffixIndex);
-
-    return currentSection.number + '.' + uniqueCount + suffix;
-  }
-
   const progressText = useMemo(() => {
     return `Capítulo ${currentIndex + 1} de ${sections.length}`;
   }, [currentIndex, sections.length]);
@@ -807,32 +783,6 @@ export default function NovoProcedimento() {
                 ? updatedRows
                 : [getDefaultTableRow(section.number, section.table.columns.length)],
           },
-        };
-      })
-    );
-  }
-
-  function duplicateTableRow(sectionIndex: number, rowIndex: number) {
-    if (isApprovedLocked) return;
-    setSections((prev) =>
-      prev.map((section, i) => {
-        if (i !== sectionIndex || !section.table) return section;
-        const sourceRow = [...section.table.rows[rowIndex]];
-        const newRow = [
-          sourceRow[0] || '',
-          sourceRow[1] || '',
-          sourceRow[2] || '',
-          sourceRow[3] || '',
-          '',
-        ];
-        const updatedRows = [
-          ...section.table.rows.slice(0, rowIndex + 1),
-          newRow,
-          ...section.table.rows.slice(rowIndex + 1),
-        ];
-        return {
-          ...section,
-          table: { ...section.table, rows: updatedRows },
         };
       })
     );
@@ -1302,9 +1252,7 @@ export default function NovoProcedimento() {
                         <tr key={rowIndex} className="border-b align-top">
                           {(isEvidenceSection || isCopSection) && (
                             <td className="p-2 w-16 text-center bg-slate-50 text-muted-foreground text-xs font-mono select-none">
-                              {isEvidenceSection
-                                ? getRowLabel(currentSection.table!.rows, rowIndex)
-                                : `${currentSection.number}.${rowIndex + 1}`}
+                              {`${currentSection.number}.${rowIndex + 1}`}
                             </td>
                           )}
                           {currentSection.table?.columns.map((_, columnIndex) => (
@@ -1416,27 +1364,14 @@ export default function NovoProcedimento() {
                           ))}
 
                           <td className="p-2">
-                            <div className="flex flex-col gap-1">
-                              {isEvidenceSection && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => duplicateTableRow(currentIndex, rowIndex)}
-                                  disabled={isApprovedLocked}
-                                  className="text-xs"
-                                >
-                                  Duplicar
-                                </Button>
-                              )}
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => removeTableRow(currentIndex, rowIndex)}
-                                disabled={isApprovedLocked}
-                              >
-                                Remover
-                              </Button>
-                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => removeTableRow(currentIndex, rowIndex)}
+                              disabled={isApprovedLocked}
+                            >
+                              Remover
+                            </Button>
                           </td>
                         </tr>
                       );
