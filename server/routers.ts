@@ -247,6 +247,18 @@ export const appRouter = router({
         return getProcedureSections(input.id);
       }),
 
+    getEvidenceCount: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const sections = await getProcedureSections(input.id);
+        if (!Array.isArray(sections)) return { count: 0 };
+        const cap6 = sections.find((s: any) =>
+          s.number === 6 || s.number === '6'
+        );
+        const count = cap6?.table?.rows?.length ?? 0;
+        return { count };
+      }),
+
     updateSections: protectedProcedure
       .input(z.object({
         id: z.number(),

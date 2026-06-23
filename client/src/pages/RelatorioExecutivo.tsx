@@ -1,4 +1,9 @@
 import { useMemo } from "react";
+
+function CprEvidenceCountExecutivo({ procedureId }: { procedureId: number }) {
+  const { data } = trpc.procedures.getEvidenceCount.useQuery({ id: procedureId });
+  return <span>{data?.count ?? '—'}</span>;
+}
 import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -118,6 +123,11 @@ export default function RelatorioExecutivo() {
             <p>Requisitos: {stats.total}</p>
           </div>
         </div>
+        <p className="text-xs text-muted-foreground mt-2 border-t pt-2">
+          Os números abaixo referem-se aos <strong>itens COP do formulário 300-28</strong> —
+          base regulatória ANAC. As evidências objetivas do Cap. 6 de cada CPR
+          são gerenciadas na tela Evidências.
+        </p>
       </Card>
 
       <div className="grid grid-cols-4 gap-4">
@@ -186,7 +196,8 @@ export default function RelatorioExecutivo() {
               <th className="pb-2">CPR</th>
               <th className="pb-2">Nome</th>
               <th className="pb-2 text-center">Atendidos</th>
-              <th className="pb-2 text-center">Total</th>
+              <th className="pb-2 text-center">Total COP</th>
+              <th className="pb-2 text-center">Evid. Cap. 6</th>
               <th className="pb-2 text-right">%</th>
             </tr>
           </thead>
@@ -197,6 +208,11 @@ export default function RelatorioExecutivo() {
                 <td className="py-2 text-muted-foreground">{c.nome}</td>
                 <td className="py-2 text-center text-green-600 font-medium">{c.atendidos}</td>
                 <td className="py-2 text-center">{c.total}</td>
+                <td className="py-2 text-center">
+                  <CprEvidenceCountExecutivo procedureId={
+                    procedures.find(p => p.code === c.cpr)?.id ?? 0
+                  } />
+                </td>
                 <td className="py-2 text-right font-bold">{c.conformidade}%</td>
               </tr>
             ))}

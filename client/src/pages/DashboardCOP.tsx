@@ -16,6 +16,11 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 
+function CprEvidenceCount({ procedureId }: { procedureId: number }) {
+  const { data } = trpc.procedures.getEvidenceCount.useQuery({ id: procedureId });
+  return <span>{data?.count ?? '—'}</span>;
+}
+
 type DashboardStatus = "OK" | "NOK" | "Pendente";
 
 interface EvidenceItem {
@@ -394,24 +399,53 @@ export default function DashboardCOP() {
           </p>
         </div>
 
-        <Card className="p-4 bg-slate-50 border-slate-200">
+        <Card className="p-4 bg-slate-50 border-slate-200 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wide text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
+              BASE REGULATÓRIA — Formulário COP 300-28
+            </span>
+          </div>
           <p className="text-sm text-muted-foreground">
-            Diagnóstico: {procedures.length} procedimento(s) cadastrado(s),{" "}
-            {copReqs.length} requisito(s) COP contabilizado(s),{" "}
-            {evidenceFiles.length} evidência(s) registrada(s).
+            <span className="font-semibold text-foreground">{copReqs.length} itens COP</span> monitorados
+            em <span className="font-semibold text-foreground">{procedures.length} CPR(s)</span> cadastrado(s).
+            Estes são os requisitos que o auditor ANAC verifica no formulário 300-28.
           </p>
+
+          <div className="flex items-center gap-2 pt-1 border-t">
+            <span className="text-xs font-bold uppercase tracking-wide text-green-700 bg-green-100 px-2 py-0.5 rounded">
+              EVIDÊNCIAS OBJETIVAS — Capítulo 6 dos CPRs
+            </span>
+          </div>
+          <div className="text-sm text-muted-foreground space-y-1">
+            {procedures.map(proc => (
+              <div key={proc.id} className="flex items-center gap-2">
+                <span className="font-mono font-bold text-foreground w-16">{proc.code}</span>
+                <span className="text-muted-foreground truncate">{proc.name}</span>
+                <span className="ml-auto text-xs shrink-0">
+                  <CprEvidenceCount procedureId={proc.id} /> evidências objetivas
+                  {' · '}
+                  <span className="font-semibold">
+                    {copReqs.filter(r => r.procedureCode === proc.code).length} itens COP
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
         </Card>
 
         <div className="grid md:grid-cols-4 gap-4">
           <Card className="p-6 border-l-4 border-l-blue-500">
             <p className="text-sm text-muted-foreground font-medium">
-              Total de Requisitos
+              Itens COP monitorados
             </p>
             <div className="text-3xl font-bold text-foreground">
               {stats.total}
             </div>
             <p className="text-xs text-muted-foreground">
-              Requisitos COP cadastrados
+              Requisitos do formulário 300-28
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              ⓘ Base regulatória ANAC — não confundir com evidências do Cap. 6
             </p>
           </Card>
 
@@ -639,6 +673,13 @@ export default function DashboardCOP() {
                         value={procedure.conformityPercentage}
                         className="h-2 w-full"
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <span className="font-semibold">{procedure.total}</span> itens COP
+                        {' · '}
+                        Evid. Cap. 6: <CprEvidenceCount procedureId={
+                          procedures.find(p => p.code === procedure.procedureCode)?.id ?? 0
+                        } />
+                      </p>
                     </div>
 
                     <div className="flex lg:justify-end">
