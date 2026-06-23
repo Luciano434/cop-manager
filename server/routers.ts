@@ -48,6 +48,7 @@ import {
   updateCopRequirementStatusByCode,
   getProcedureSections,
   updateProcedureSections,
+  syncCopRequirementsFromCap7,
 } from "./db";
 
 export const appRouter = router({
@@ -253,6 +254,18 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         await updateProcedureSections(input.id, input.sections);
+
+        const procedure = await getProcedureById(input.id);
+        if (procedure?.code && Array.isArray(input.sections)) {
+          const result = await syncCopRequirementsFromCap7(
+            procedure.code,
+            input.sections
+          );
+          console.log(
+            `[syncCop] ${procedure.code}: ${result.inserted} inseridos, ${result.updated} atualizados`
+          );
+        }
+
         return { success: true };
       }),
   }),

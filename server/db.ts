@@ -484,3 +484,59 @@ export function normalizeCopCode(code: string): string {
   if (/\(\d+\)$/.test(trimmed)) return trimmed;
   return trimmed + '(1)';
 }
+
+export async function syncCopRequirementsFromCap7(
+  procedureCode: string,
+  sections: any[]
+): Promise<{ inserted: number; updated: number }> {
+  const db = await getDb();
+  if (!db) return { inserted: 0, updated: 0 };
+
+  const cap7 = sections.find((s: any) =>
+    s.number === 7 || s.number === '7'
+  );
+
+  if (!cap7?.table?.rows?.length) {
+    return { inserted: 0, updated: 0 };
+  }
+
+  let inserted = 0;
+  let updated = 0;
+
+  for (const row of cap7.table.rows) {
+    const rawCode = String(row[0] || '').replace(/\t/g, '').trim();
+    if (!rawCode) continue;
+
+    const code = normalizeCopCode(rawCode);
+    const description = String(row[1] || '').replace(/\t/g, '').trim();
+    const expectedEvidence = String(row[3] || '').replace(/\t/g, '').trim();
+
+    const existing = await db.select()
+      .from(copRequirements)
+      .where(
+        and(
+          eq(copRequirements.code, code),
+          eq(copRequirements.procedureCode, procedureCode)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db.update(copRequirements)
+        .set({ description, expectedEvidence })
+        .where(eq(copRequirements.id, existing[0].id));
+      updated++;
+    } else {
+      await db.insert(copRequirements).values({
+        code,
+        description,
+        status: 'nao_atendido',
+        procedureCode,
+        expectedEvidence,
+      });
+      inserted++;
+    }
+  }
+
+  return { inserted, updated };
+}
