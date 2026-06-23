@@ -469,7 +469,10 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const savedId = await upsertEvidenceVerification({ ...input, updatedBy: ctx.user.id });
         if (input.copCode) {
-          await updateCopRequirementStatusByCode(input.copCode, input.cprCode, input.status);
+          const codes = input.copCode.split(',').map((c: string) => c.trim()).filter(Boolean);
+          for (const code of codes) {
+            await updateCopRequirementStatusByCode(code, input.cprCode, input.status);
+          }
         } else {
           const linkedCodes = await getEvidenceVerificationCopCodes(savedId);
           for (const code of linkedCodes) {

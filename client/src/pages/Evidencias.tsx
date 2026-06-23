@@ -87,7 +87,8 @@ export default function Evidencias() {
       evidenciaEsperada: String(row[1] || "").trim(),
       registroEsperado: String(row[2] || "").trim(),
       verificacaoEsperada: String(row[3] || "").trim(),
-      copCode: String(row[4] || "").trim(),
+      copCodes: String(row[4] || "").trim().split(',').map((c: string) => c.trim()).filter(Boolean),
+      copCode: String(row[4] || "").trim().split(',')[0]?.trim() || "",
     }));
   }
 
@@ -198,10 +199,15 @@ export default function Evidencias() {
                     <p className="text-sm text-gray-600"><span className="font-medium">Evidência esperada:</span> {req.evidenciaEsperada || "-"}</p>
                     <p className="text-sm text-gray-600"><span className="font-medium">Registro esperado:</span> {req.registroEsperado || "-"}</p>
                     <p className="text-sm text-gray-600"><span className="font-medium">Forma de verificação:</span> {req.verificacaoEsperada || "-"}</p>
-                    {req.copCode && (
-                      <p className="text-xs text-blue-600 font-medium">
-                        Item COP: {req.copCode}
-                      </p>
+                    {req.copCodes?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 items-center">
+                        <span className="text-xs font-medium text-gray-600">Itens COP:</span>
+                        {req.copCodes.map((code: string) => (
+                          <span key={code} className="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-mono">
+                            {code}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
 

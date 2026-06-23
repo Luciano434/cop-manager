@@ -484,6 +484,7 @@ export default function NovoProcedimento() {
 
   const [sections, setSections] = useState<Section[]>(createEmptySections());
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [openCopSelectors, setOpenCopSelectors] = useState<Set<string>>(new Set());
 
   const currentSection = sections[currentIndex];
   const isEvidenceSection = currentSection.number === 6;
@@ -681,6 +682,29 @@ export default function NovoProcedimento() {
       })
     );
   }
+
+  function toggleCopSelector(key: string) {
+    setOpenCopSelectors(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  // Itens COP derivados do Cap. 7 em edição (sempre em sincronia com o formulário)
+  const copReqsForCpr = useMemo(() => {
+    const cap7 = sections.find(s => s.number === 7);
+    if (cap7?.table?.rows?.length) {
+      return cap7.table.rows
+        .map((row: string[]) => ({
+          code: String(row[0] || '').replace(/\t/g, '').trim(),
+          description: String(row[1] || '').replace(/\t/g, '').trim(),
+        }))
+        .filter(r => r.code);
+    }
+    return copReqs.filter(r => !r.procedureCode || r.procedureCode === code);
+  }, [sections, copReqs, code]);
 
   function updateTableColumn(
     sectionIndex: number,
@@ -1285,23 +1309,78 @@ export default function NovoProcedimento() {
                           )}
                           {currentSection.table?.columns.map((_, columnIndex) => (
                             <td key={columnIndex} className="p-2">
-                              {isEvidenceSection && columnIndex === 4 ? (
-                                <select
-                                  className="w-full border rounded-md px-2 py-2 min-h-[38px]"
-                                  value={workingRow[4] || ""}
-                                  disabled={isApprovedLocked}
-                                  onChange={(e) =>
-                                    updateTableCell(currentIndex, rowIndex, 4, e.target.value)
-                                  }
-                                >
-                                  <option value="">— Selecione item COP —</option>
-                                  {[...copReqs].sort((a, b) => a.code.localeCompare(b.code)).map((req) => (
-                                    <option key={req.code} value={req.code}>
-                                      {req.code} — {req.description?.substring(0, 40)}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : isCopSection && columnIndex === 4 ? (() => {
+                              {isEvidenceSection && columnIndex === 4 ? (() => {
+                                const selectorKey = `${currentIndex}-${rowIndex}`;
+                                const isOpen = openCopSelectors.has(selectorKey);
+                                const currentCodes = (workingRow[4] || '')
+                                  .split(',')
+                                  .map((c: string) => c.trim())
+                                  .filter(Boolean);
+                                return (
+                                  <div className="border rounded-md bg-white min-w-[200px]">
+                                    <button
+                                      type="button"
+                                      disabled={isApprovedLocked}
+                                      onClick={() => toggleCopSelector(selectorKey)}
+                                      className="w-full flex items-center justify-between px-2 py-1.5 text-xs hover:bg-slate-50 rounded-md"
+                                    >
+                                      <div className="flex flex-wrap gap-1 flex-1 text-left">
+                                        {currentCodes.length === 0 ? (
+                                          <span className="text-gray-400">— Selecione item COP —</span>
+                                        ) : (
+                                          currentCodes.map(code => (
+                                            <span
+                                              key={code}
+                                              className="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-mono"
+                                            >
+                                              {code}
+                                            </span>
+                                          ))
+                                        )}
+                                      </div>
+                                      <span className="ml-2 text-gray-400 shrink-0">
+                                        {isOpen ? '▲' : '▼'}
+                                      </span>
+                                    </button>
+                                    {isOpen && (
+                                      <div className="border-t max-h-[200px] overflow-y-auto p-1">
+                                        {copReqsForCpr
+                                          .slice()
+                                          .sort((a, b) => a.code.localeCompare(b.code))
+                                          .map(req => {
+                                            const isChecked = currentCodes.includes(req.code);
+                                            return (
+                                              <label
+                                                key={req.code}
+                                                className="flex items-center gap-2 text-xs py-0.5 px-1 cursor-pointer hover:bg-slate-50 rounded"
+                                              >
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isChecked}
+                                                  disabled={isApprovedLocked}
+                                                  onChange={(e) => {
+                                                    const codes = (workingRow[4] || '')
+                                                      .split(',')
+                                                      .map((c: string) => c.trim())
+                                                      .filter(Boolean);
+                                                    const updated = e.target.checked
+                                                      ? [...codes, req.code]
+                                                      : codes.filter((c: string) => c !== req.code);
+                                                    updateTableCell(currentIndex, rowIndex, 4, updated.join(','));
+                                                  }}
+                                                />
+                                                <span className="font-mono shrink-0">{req.code}</span>
+                                                <span className="text-muted-foreground truncate">
+                                                  — {req.description?.substring(0, 40)}
+                                                </span>
+                                              </label>
+                                            );
+                                          })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })() : isCopSection && columnIndex === 4 ? (() => {
                                 const itemCop = workingRow[0]?.trim();
                                 const req = copReqs.find(r => r.code === itemCop);
                                 const status = req?.status;

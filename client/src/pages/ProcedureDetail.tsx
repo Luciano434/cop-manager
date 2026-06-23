@@ -498,6 +498,31 @@ if (isCap7Table && colIndex === 0) {
 }
 
                 
+                if (isEvidenceTable && colIndex === 4) {
+                  const codes = String(value || '')
+                    .split(',')
+                    .map((c: string) => c.trim())
+                    .filter(Boolean);
+                  return (
+                    <td key={colIndex} className="p-2">
+                      {codes.length === 0 ? (
+                        <span className="text-gray-400">—</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {codes.map((code: string) => (
+                            <span
+                              key={code}
+                              className="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-mono"
+                            >
+                              {code}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  );
+                }
+
                 if (isCap7Table && colIndex === 4) {
                   const itemCop = String(row[0] || '').trim();
                   const req = copReqs.find((r: any) => r.code === itemCop);
