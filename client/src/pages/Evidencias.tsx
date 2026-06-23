@@ -141,7 +141,7 @@ export default function Evidencias() {
         registroText: merged.registroText,
         responsible: merged.responsible,
         observacao: merged.observacao,
-        copCode: req?.copCode || undefined,
+        copCode: req?.copCodes?.join(',') || undefined,
       });
       setLocalChanges((prev) => {
         const updated = { ...prev };

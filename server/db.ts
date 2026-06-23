@@ -464,6 +464,8 @@ export async function updateCopRequirementStatusByCode(
   const db = await getDb();
   if (!db) return;
 
+  const normalizedCode = normalizeCopCode(copCode);
+
   const copStatus =
     evidenceStatus === 'OK' ? 'atendido'
     : evidenceStatus === 'NOK' || evidenceStatus === 'PARCIAL' ? 'parcial'
@@ -473,7 +475,7 @@ export async function updateCopRequirementStatusByCode(
     .set({ status: copStatus as 'atendido' | 'parcial' | 'nao_atendido' })
     .where(
       and(
-        eq(copRequirements.code, copCode),
+        eq(copRequirements.code, normalizedCode),
         eq(copRequirements.procedureCode, procedureCode)
       )
     );
