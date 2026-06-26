@@ -32,6 +32,7 @@ export const procedures = mysqlTable("procedures", {
   responsible: varchar("responsible", { length: 255 }),
   family: varchar("family", { length: 100 }),
   sections: text("sections"),
+  masterPdfPath: varchar("masterPdfPath", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   createdBy: int("createdBy"),

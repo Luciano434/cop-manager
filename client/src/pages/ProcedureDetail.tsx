@@ -22,9 +22,10 @@ import {
   ChevronUp,
   Pencil,
   Workflow,
+  Upload,
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useRef, type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1365,6 +1366,11 @@ export default function ProcedureDetail() {
   const updateProcedureMutation = trpc.procedures.update.useMutation();
   const deleteProcedureMutation = trpc.procedures.delete.useMutation();
   const utils = trpc.useUtils();
+  const uploadMasterPdfMutation = trpc.procedures.uploadMasterPdf.useMutation({
+    onSuccess: () => utils.procedures.getByCode.invalidate({ code: procedureCode }),
+  });
+  const [uploading, setUploading] = useState(false);
+  const masterPdfInputRef = useRef<HTMLInputElement>(null);
 
   const dbProcedureAsImported = useMemo((): ImportedProcedure | null => {
     if (!dbProcedure) return null;
@@ -1835,6 +1841,7 @@ const canEditEvidence =
 
 const hasMasterDocument = Boolean(procedureView.masterDocument?.path);
 const hasMasterPdf = Boolean(procedureView.masterPdf?.path);
+const hasMasterPdfInDb = Boolean(dbProcedure?.masterPdfPath);
   const toggleProcessItem = (key: string) => {
     setOpenProcessItems((prev) =>
       prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
@@ -2059,6 +2066,29 @@ const handleDeleteProcedure = async () => {
     );
   };
 
+  const handleUploadMasterPdf = async (file: File) => {
+    if (!dbProcedure) return;
+    setUploading(true);
+    try {
+      const fileBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      const data = await uploadMasterPdfMutation.mutateAsync({
+        id: dbProcedure.id,
+        fileName: file.name,
+        fileBase64,
+      });
+      alert(`PDF mestre enviado com sucesso:\n${data.path}`);
+    } catch (err: any) {
+      alert(err?.message || "Erro ao fazer upload do PDF mestre");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleEditProcedure = () => {
     if (!isSelectedLatestRevision) {
       alert(
@@ -2147,14 +2177,45 @@ disabled={!["ADMIN", "QUALIDADE"].includes(currentUser.role)}
   Excluir CPR
 </Button>
 
-            {hasMasterDocument && (
-              <Button variant="outline" onClick={downloadMasterDocument}>
+            {dbProcedure && ["ADMIN", "QUALIDADE"].includes(currentUser.role) && (
+              <>
+                <input
+                  ref={masterPdfInputRef}
+                  type="file"
+                  accept=".pdf,.docx"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUploadMasterPdf(file);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => masterPdfInputRef.current?.click()}
+                  disabled={uploading}
+                  title="Fazer upload do documento mestre (PDF ou DOCX)"
+                >
+                  <Upload className="mr-2 w-4 h-4" />
+                  {uploading ? "Enviando..." : hasMasterPdfInDb ? "Trocar PDF" : "Upload PDF mestre"}
+                </Button>
+              </>
+            )}
+
+            {(hasMasterPdfInDb || hasMasterDocument) && (
+              <Button variant="outline" onClick={() => {
+                if (hasMasterPdfInDb && dbProcedure?.masterPdfPath) {
+                  downloadFile(dbProcedure.masterPdfPath, `${procedureCode}_mestre.pdf`);
+                } else {
+                  downloadMasterDocument();
+                }
+              }}>
                 <FileDown className="mr-2 w-4 h-4" />
                 Baixar mestre
               </Button>
             )}
 
-            {isApproved && hasMasterPdf && (
+            {isApproved && hasMasterPdf && !hasMasterPdfInDb && (
               <Button onClick={handleExportPdf}>
                 <Printer className="mr-2 w-4 h-4" />
                 Exportar PDF

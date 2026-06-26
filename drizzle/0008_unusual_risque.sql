@@ -1,0 +1,1 @@
+ALTER TABLE `procedures` ADD `masterPdfPath` varchar(500);

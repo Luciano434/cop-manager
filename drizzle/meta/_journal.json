@@ -57,6 +57,13 @@
       "when": 1781899921398,
       "tag": "0007_optimal_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1782487569262,
+      "tag": "0008_unusual_risque",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,7 @@
 import bcrypt from "bcryptjs";
 import { COOKIE_NAME, NOT_ADMIN_ERR_MSG } from "@shared/const";
+import fs from "fs";
+import path from "path";
 import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
@@ -49,6 +51,7 @@ import {
   getProcedureSections,
   updateProcedureSections,
   syncCopRequirementsFromCap7,
+  updateProcedureMasterPdfPath,
 } from "./db";
 
 export const appRouter = router({
@@ -279,6 +282,35 @@ export const appRouter = router({
         }
 
         return { success: true };
+      }),
+
+    uploadMasterPdf: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        fileName: z.string(),
+        fileBase64: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== "ADMIN" && ctx.user.role !== "QUALIDADE") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas ADMIN e QUALIDADE podem alterar o documento mestre" });
+        }
+        const ext = path.extname(input.fileName).toLowerCase();
+        if (ext !== ".pdf" && ext !== ".docx") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Apenas arquivos PDF ou DOCX são permitidos" });
+        }
+        const procedure = await getProcedureById(input.id);
+        if (!procedure) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Procedimento não encontrado" });
+        }
+        const mastersDir = process.env.NODE_ENV === "development"
+          ? path.resolve(import.meta.dirname, "..", "client", "public", "docs", "masters")
+          : path.resolve(import.meta.dirname, "public", "docs", "masters");
+        if (!fs.existsSync(mastersDir)) fs.mkdirSync(mastersDir, { recursive: true });
+        const destName = `${procedure.code}_R00${ext}`;
+        fs.writeFileSync(path.join(mastersDir, destName), Buffer.from(input.fileBase64, "base64"));
+        const masterPdfPath = `/docs/masters/${destName}`;
+        await updateProcedureMasterPdfPath(input.id, masterPdfPath);
+        return { path: masterPdfPath };
       }),
   }),
 

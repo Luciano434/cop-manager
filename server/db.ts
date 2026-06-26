@@ -129,6 +129,12 @@ export async function deleteProcedure(id: number) {
   return db.delete(procedures).where(eq(procedures.id, id));
 }
 
+export async function updateProcedureMasterPdfPath(id: number, masterPdfPath: string | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.update(procedures).set({ masterPdfPath }).where(eq(procedures.id, id));
+}
+
 // Operational Steps queries
 export async function getOperationalStepsByProcedure(procedureId: number) {
   const db = await getDb();
