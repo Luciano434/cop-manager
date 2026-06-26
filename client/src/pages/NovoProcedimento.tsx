@@ -869,63 +869,6 @@ export default function NovoProcedimento() {
     }
   }
 
-  function buildPayload() {
-    const normalizedCode = normalizeProcedureCode(code);
-    const normalizedFamily = normalizeFamily(family);
-
-    const normalizedStructure = sections.map((section) => {
-      const isSection4 = section.number === 4;
-      const isSection6 = section.number === 6;
-      const isSection7 = section.number === 7;
-      const isTableSection =
-        isSection4 || isSection6 || (isSection7 && section.mode === "table");
-
-      const baseSection: any = {
-        number: String(section.number),
-        item: String(section.number),
-        title: section.title,
-        content: isTableSection ? "" : section.content.trim(),
-        subitems: isTableSection
-          ? []
-          : section.subitems.map((subitem, index) => ({
-              item: buildNumberLabel(section.number, index),
-              title: subitem.title.trim(),
-              content: subitem.content.trim(),
-            })),
-        mode: isTableSection ? "table" : "text",
-      };
-
-      if (isTableSection && section.table) {
-        const normalizedTable = normalizeTableForSection(section.number, section.table);
-        baseSection.table = {
-          columns: (normalizedTable?.columns || []).map((col) => col.trim()),
-          rows: (normalizedTable?.rows || []).map((row) =>
-            row.map((cell) => String(cell || "").trim())
-          ),
-        };
-      }
-
-      return baseSection;
-    });
-
-    return {
-      code: normalizedCode,
-      name: name.trim(),
-      family: normalizedFamily,
-      description: description.trim(),
-      status,
-      revision: normalizeRevision(revision),
-      responsible: responsible.trim(),
-      structure: normalizedStructure,
-      sections: normalizedStructure,
-    };
-  }
-
-  function handlePreviewJson() {
-    const payload = buildPayload();
-    alert(JSON.stringify(payload, null, 2));
-  }
-
   function validateForm() {
     if (!code.trim()) {
       alert("Preencha o código do procedimento.");
@@ -1528,10 +1471,6 @@ export default function NovoProcedimento() {
             </div>
 
             <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={handlePreviewJson}>
-                Gerar prévia JSON
-              </Button>
-
               <Button
                 type="button"
                 onClick={handleSaveProcedure}
