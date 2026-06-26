@@ -108,7 +108,7 @@ const currentUser = localUser || user || demoUser;
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-screen bg-background">
       <aside
         className={`${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -172,7 +172,7 @@ const currentUser = localUser || user || demoUser;
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="bg-card border-b border-border h-16 flex items-center px-4 lg:px-6 gap-4">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
