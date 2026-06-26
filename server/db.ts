@@ -450,7 +450,7 @@ export async function recalcCopRequirementStatus(
     .set({ status: newStatus })
     .where(
       and(
-        eq(copRequirements.code, copCode),
+        eq(copRequirements.code, normalizeCopCode(copCode)),
         eq(copRequirements.procedureCode, procedureCode)
       )
     );

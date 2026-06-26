@@ -27,6 +27,7 @@ export default function Evidencias() {
   const [selectedCpr, setSelectedCpr] = useState<any>(null);
   const [localChanges, setLocalChanges] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [copCodeRequired, setCopCodeRequired] = useState<Record<string, boolean>>({});
 
   const currentUser = getCurrentUser();
 
@@ -114,6 +115,9 @@ export default function Evidencias() {
   }
 
   function handleChange(requirementId: string, field: string, value: string) {
+    if (field === "status" && (value === "PENDENTE" || value === "NA")) {
+      setCopCodeRequired((prev) => { const u = { ...prev }; delete u[requirementId]; return u; });
+    }
     setLocalChanges((prev) => ({
       ...prev,
       [requirementId]: { ...prev[requirementId], [field]: value },
@@ -129,6 +133,13 @@ export default function Evidencias() {
     }
 
     const req = requirements.find((r) => r.id === requirementId);
+
+    const requiresCopCode = ["OK", "NOK", "PARCIAL"].includes(merged.status);
+    if (requiresCopCode && (!req?.copCodes || req.copCodes.length === 0)) {
+      setCopCodeRequired((prev) => ({ ...prev, [requirementId]: true }));
+      return;
+    }
+    setCopCodeRequired((prev) => { const u = { ...prev }; delete u[requirementId]; return u; });
 
     setSaving((prev) => ({ ...prev, [requirementId]: true }));
     try {
@@ -208,6 +219,11 @@ export default function Evidencias() {
                           </span>
                         ))}
                       </div>
+                    )}
+                    {copCodeRequired[req.id] && (
+                      <p className="text-xs text-red-600 mt-1">
+                        Selecione ao menos um item COP antes de registrar este status.
+                      </p>
                     )}
                   </div>
 
