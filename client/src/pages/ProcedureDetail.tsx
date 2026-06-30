@@ -1358,6 +1358,10 @@ export default function ProcedureDetail() {
     { id: dbProcedure?.id ?? 0 },
     { enabled: !!dbProcedure?.id }
   );
+  const { data: dbRevisions = [] } = trpc.procedures.getRevisions.useQuery(
+    { id: dbProcedure?.id ?? 0 },
+    { enabled: !!dbProcedure?.id }
+  );
   const { data: copReqs = [] } = trpc.copRequirements.list.useQuery();
   const updateStatusMutation = trpc.procedures.updateStatus.useMutation();
   const updateRevisionMutation = trpc.procedures.updateRevision.useMutation();
@@ -1446,7 +1450,7 @@ export default function ProcedureDetail() {
       createdAt: dbDate(dbProcedure.createdAt),
       updatedAt: dbDate(dbProcedure.updatedAt),
       sections,
-      revision: "00",
+      revision: dbProcedure.revision ?? "R00",
     };
   }, [dbProcedure, dbSections, procedureCode]);
 
@@ -1520,6 +1524,21 @@ export default function ProcedureDetail() {
   const storedData = getStoredProcedureView(procedureCode);
 
   const revisionOptions = useMemo(() => {
+    if (dbProcedure) {
+      const seen = new Set<string>();
+      const opts: string[] = [];
+      for (const rev of dbRevisions as any[]) {
+        const n = normalizeRevision(rev.revision ?? "R00");
+        if (!seen.has(n)) { seen.add(n); opts.push(n); }
+      }
+      const curr = normalizeRevision(dbProcedure.revision ?? "R00");
+      if (!seen.has(curr)) opts.push(curr);
+      return opts.sort((a, b) => {
+        const na = Number(a), nb = Number(b);
+        return (Number.isFinite(na) && Number.isFinite(nb)) ? na - nb : a.localeCompare(b);
+      });
+    }
+
     const options: string[] = [];
 
     if (Array.isArray(storedProcedure?.revisions)) {
@@ -1560,7 +1579,7 @@ export default function ProcedureDetail() {
 
       return a.localeCompare(b);
     });
-  }, [storedProcedure, rawProcedureSource, baseProcedureSource]);
+  }, [dbProcedure, dbRevisions, storedProcedure, rawProcedureSource, baseProcedureSource]);
 
   const latestRevisionOption = revisionOptions[revisionOptions.length - 1] || "00";
 
@@ -1589,8 +1608,57 @@ export default function ProcedureDetail() {
     );
   }, [storedProcedure, selectedRevision]);
 
+  const selectedDbRevisionSnapshot = useMemo(() => {
+    if (!dbProcedure || (dbRevisions as any[]).length === 0) return null;
+    const currNorm = normalizeRevision(dbProcedure.revision ?? "R00");
+    const selNorm = normalizeRevision(selectedRevision || "00");
+    if (selNorm === currNorm) return null;
+    return (dbRevisions as any[]).find(
+      (r) => normalizeRevision(r.revision ?? "R00") === selNorm
+    ) ?? null;
+  }, [dbProcedure, dbRevisions, selectedRevision]);
+
   const rawProcedure: ProcedureData | null = useMemo(() => {
     if (!rawProcedureSource) return null;
+
+    if (dbProcedure && selectedDbRevisionSnapshot) {
+      const snap = selectedDbRevisionSnapshot as any;
+      let snapSections: ImportedSection[] = [];
+      if (snap.sections) {
+        try {
+          const parsed = JSON.parse(snap.sections);
+          if (Array.isArray(parsed)) {
+            snapSections = parsed.map((s: any) => ({
+              number: String(s.number ?? ""),
+              item: String(s.number ?? ""),
+              title: String(s.title ?? ""),
+              content: s.content ?? "",
+              subitems: Array.isArray(s.subitems)
+                ? s.subitems.map((sub: any) => ({
+                    item: sub.item ?? "",
+                    title: sub.title ?? "",
+                    content: sub.content ?? "",
+                  }))
+                : [],
+              mode: (s.mode === "table" ? "table" : "text") as "text" | "table",
+              table: s.table ?? undefined,
+            }));
+          }
+        } catch { /* ignore parse errors */ }
+      }
+      return {
+        id: dbProcedure.id,
+        code: dbProcedure.code,
+        name: snap.name ?? dbProcedure.name,
+        description: (snap.description ?? dbProcedure.description) || undefined,
+        status: snap.status ?? "aprovado",
+        responsible: (snap.responsible ?? dbProcedure.responsible) || undefined,
+        createdAt: new Date().toISOString().slice(0, 10),
+        updatedAt: new Date().toISOString().slice(0, 10),
+        sections: snapSections,
+        revision: snap.revision ?? "R00",
+      } as ImportedProcedure;
+    }
 
     const selectedRevisionNormalized = normalizeRevision(selectedRevision || "00");
     const baseRevision = normalizeRevision(
@@ -1648,7 +1716,7 @@ if (
     }
 
     return rawProcedureSource;
-  }, [rawProcedureSource, storedProcedure, selectedRevisionData, selectedRevision, procedureCode, baseProcedureSource]);
+  }, [rawProcedureSource, storedProcedure, selectedRevisionData, selectedRevision, procedureCode, baseProcedureSource, dbProcedure, selectedDbRevisionSnapshot]);
 
   const baseProcedureView = useMemo(() => {
     if (!rawProcedure) return null;
@@ -1858,7 +1926,7 @@ const isApproved = normalizedStatus === "aprovado";
 const isBlocked = normalizedStatus === "bloqueado";
 const isCanceled = normalizedStatus === "cancelado";
 
-const isProcedureLocked = isApproved;
+const isProcedureLocked = isApproved || (!!dbProcedure && !!selectedDbRevisionSnapshot);
 const isLocked = isProcedureLocked;
 
 const canEditEvidence =
@@ -2293,6 +2361,13 @@ disabled={!["ADMIN", "QUALIDADE"].includes(currentUser.role)}
         {approvalError && (
           <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
             {approvalError}
+          </div>
+        )}
+
+        {dbProcedure && selectedDbRevisionSnapshot && (
+          <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
+            <Lock className="h-4 w-4 shrink-0" />
+            Revisão histórica — somente leitura. Selecione a revisão atual para editar.
           </div>
         )}
 
