@@ -1858,11 +1858,11 @@ const revision = `R${normalizeRevision(procedureView.revision)}`;
   }
 
 const normalizedStatus = normalizeStatus(procedureView.status);
-const isApproved = normalizedStatus === "aprovado" || normalizedStatus === "implementado";
+const isApproved = normalizedStatus === "aprovado";
 const isBlocked = normalizedStatus === "bloqueado";
 const isCanceled = normalizedStatus === "cancelado";
 
-const isProcedureLocked = isApproved || isBlocked || isCanceled;
+const isProcedureLocked = isApproved;
 const isLocked = isProcedureLocked;
 
 const canEditEvidence =
@@ -2176,7 +2176,7 @@ const handleDeleteProcedure = async () => {
                 !isSelectedLatestRevision
                   ? "Revisão histórica. Selecione a revisão atual para editar."
                   : isLocked
-                  ? "Procedimento aprovado/bloqueado. Crie uma nova revisão para editar."
+                  ? "Procedimento aprovado. Crie uma nova revisão para editar."
                   : "Editar procedimento"
               }
             >
