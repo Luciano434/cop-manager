@@ -222,7 +222,7 @@ export const appRouter = router({
         code: z.string(),
         name: z.string(),
         description: z.string().optional(),
-        status: z.enum(["nao_iniciado", "em_desenvolvimento", "implementado"]),
+        status: z.enum(["nao_iniciado", "em_desenvolvimento"]),
         responsible: z.string().optional(),
         family: z.string().optional(),
       }))
@@ -254,7 +254,7 @@ export const appRouter = router({
     updateStatus: roleProcedure(["ADMIN", "QUALIDADE"])
       .input(z.object({
         id: z.number(),
-        status: z.enum(["nao_iniciado", "em_desenvolvimento", "implementado", "em_revisao", "em_elaboracao", "bloqueado", "cancelado"]),
+        status: z.enum(["nao_iniciado", "em_desenvolvimento", "em_revisao", "em_elaboracao", "bloqueado", "cancelado"]),
       }))
       .mutation(async ({ input, ctx }) => {
         return updateProcedure(input.id, {

@@ -258,10 +258,10 @@ function normalizeFamily(value: string) {
   return "a-classificar";
 }
 
-function mapLegacyStatus(legacyStatus: string): "nao_iniciado" | "em_desenvolvimento" | "implementado" {
+function mapLegacyStatus(legacyStatus: string): "nao_iniciado" | "em_desenvolvimento" {
   const s = String(legacyStatus || "").toLowerCase();
-  if (s === "aprovado" || s === "implementado") return "implementado";
   if (s === "em_revisao" || s === "em_desenvolvimento") return "em_desenvolvimento";
+  if (s === "aprovado" || s === "implementado") return "em_desenvolvimento";
   return "nao_iniciado";
 }
 
@@ -492,7 +492,7 @@ export default function NovoProcedimento() {
   const isEvidenceSection = currentSection.number === 6;
   const isCopSection = currentSection.number === 7;
   const isTableMode = currentSection.mode === "table";
-  const isApprovedLocked = isEditMode && status === "implementado";
+  const isApprovedLocked = false;
 
   const progressText = useMemo(() => {
     return `Capítulo ${currentIndex + 1} de ${sections.length}`;
@@ -926,7 +926,7 @@ export default function NovoProcedimento() {
     if (!validateForm()) return;
 
     const normalizedCode = normalizeProcedureCode(code);
-    const dbStatus = status as "nao_iniciado" | "em_desenvolvimento" | "implementado";
+    const dbStatus = status as "nao_iniciado" | "em_desenvolvimento";
 
     try {
       const normalizedFamily = normalizeFamily(family);
@@ -1044,7 +1044,6 @@ export default function NovoProcedimento() {
             >
               <option value="nao_iniciado">Não iniciado</option>
               <option value="em_desenvolvimento">Em desenvolvimento</option>
-              <option value="implementado">Implementado</option>
             </select>
           </div>
 

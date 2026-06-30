@@ -39,7 +39,6 @@ import { trpc } from "@/lib/trpc";
 type ProcedureStatus =
   | "nao_iniciado"
   | "em_desenvolvimento"
-  | "implementado"
   | "aprovado"
   | "em_revisao"
   | "em_elaboracao"
@@ -82,7 +81,7 @@ interface LegacyOperationalStep {
   evidenceLocation: string;
   auditAccess: string;
   acceptanceCriteria: string;
-  status: "nao_iniciado" | "em_desenvolvimento" | "implementado";
+  status: "nao_iniciado" | "em_desenvolvimento";
 }
 
 interface LegacyCopRequirement {
@@ -249,7 +248,6 @@ function normalizeStatus(value?: string) {
   if (normalized === "bloqueado") return "bloqueado";
   if (normalized === "cancelado") return "cancelado";
   if (normalized === "nao_iniciado") return "nao_iniciado";
-  if (normalized === "implementado") return "implementado";
   if (normalized === "em_desenvolvimento") return "em_desenvolvimento";
 
   if (normalized === "em elaboração" || normalized === "em elaboracao") {
@@ -265,7 +263,6 @@ function formatStatusLabel(status?: string) {
   const map: Record<string, string> = {
     nao_iniciado: "Não Iniciado",
     em_desenvolvimento: "Em Desenvolvimento",
-    implementado: "Implementado",
     aprovado: "Aprovado",
     em_revisao: "Em Revisão",
     em_elaboracao: "Em Elaboração",
@@ -282,7 +279,6 @@ function getStatusClasses(status?: string) {
   const map: Record<string, string> = {
     nao_iniciado: "bg-gray-100 text-gray-800",
     em_desenvolvimento: "bg-blue-100 text-blue-800",
-    implementado: "bg-green-100 text-green-800",
     aprovado: "bg-green-100 text-green-800",
     em_revisao: "bg-yellow-100 text-yellow-800",
     em_elaboracao: "bg-blue-100 text-blue-800",
@@ -2357,7 +2353,6 @@ disabled={!["ADMIN", "QUALIDADE"].includes(currentUser.role)}
     const dbStatus = e.target.value as
       | "nao_iniciado"
       | "em_desenvolvimento"
-      | "implementado"
       | "em_elaboracao"
       | "em_revisao"
       | "bloqueado"
@@ -2429,7 +2424,6 @@ disabled={!["ADMIN", "QUALIDADE"].includes(currentUser.role)}
                   <>
                     <option value="nao_iniciado">Não iniciado</option>
                     <option value="em_desenvolvimento">Em desenvolvimento</option>
-                    <option value="implementado">Implementado</option>
                     <option value="em_elaboracao">Em elaboração</option>
                     <option value="em_revisao">Em revisão</option>
                     <option value="bloqueado">Bloqueado</option>

@@ -1,0 +1,2 @@
+ALTER TABLE `procedure_revisions` MODIFY COLUMN `status` enum('nao_iniciado','em_desenvolvimento','aprovado','em_revisao','em_elaboracao','bloqueado','cancelado') NOT NULL DEFAULT 'aprovado';--> statement-breakpoint
+ALTER TABLE `procedures` MODIFY COLUMN `status` enum('nao_iniciado','em_desenvolvimento','aprovado','em_revisao','em_elaboracao','bloqueado','cancelado') NOT NULL DEFAULT 'nao_iniciado';

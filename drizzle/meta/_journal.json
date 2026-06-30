@@ -78,6 +78,13 @@
       "when": 1782849691963,
       "tag": "0010_known_miracleman",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1782852620055,
+      "tag": "0011_complete_giant_man",
+      "breakpoints": true
     }
   ]
 }

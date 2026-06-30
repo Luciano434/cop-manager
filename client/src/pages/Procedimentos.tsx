@@ -92,7 +92,6 @@ function normalizeStatus(value?: string) {
   if (normalized === "bloqueado") return "bloqueado";
   if (normalized === "cancelado") return "cancelado";
   if (normalized === "nao_iniciado") return "nao_iniciado";
-  if (normalized === "implementado") return "implementado";
   if (normalized === "em_desenvolvimento") return "em_desenvolvimento";
   return "em_elaboracao";
 }
@@ -119,7 +118,6 @@ function formatStatusLabel(status: string) {
   const map: Record<string, string> = {
     nao_iniciado: "Não iniciado",
     em_desenvolvimento: "Em desenvolvimento",
-    implementado: "Implementado",
     em_elaboracao: "Em elaboração",
     aprovado: "Aprovado",
     bloqueado: "Bloqueado",
@@ -133,7 +131,6 @@ function getStatusBadgeClass(status: string) {
   const map: Record<string, string> = {
     nao_iniciado: "bg-gray-100 text-gray-700",
     em_desenvolvimento: "bg-blue-100 text-blue-700",
-    implementado: "bg-green-100 text-green-700",
     em_elaboracao: "bg-amber-100 text-amber-700",
     aprovado: "bg-green-100 text-green-700",
     bloqueado: "bg-gray-200 text-gray-900",

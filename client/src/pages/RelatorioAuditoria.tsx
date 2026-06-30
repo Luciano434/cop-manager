@@ -235,14 +235,11 @@ export default function RelatorioAuditoria() {
                         <span className="text-xs bg-slate-100 px-2 py-0.5 rounded shrink-0">{family}</span>
                       )}
                       <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${
-                        proc.status === "implementado"
-                          ? "bg-green-100 text-green-700"
-                          : proc.status === "em_desenvolvimento"
+                        proc.status === "em_desenvolvimento"
                           ? "bg-yellow-100 text-yellow-700"
                           : "bg-slate-100 text-slate-600"
                       }`}>
-                        {proc.status === "implementado" ? "Implementado"
-                          : proc.status === "em_desenvolvimento" ? "Em desenvolvimento"
+                        {proc.status === "em_desenvolvimento" ? "Em desenvolvimento"
                           : "Não iniciado"}
                       </span>
                     </div>
