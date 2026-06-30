@@ -1372,6 +1372,34 @@ export default function ProcedureDetail() {
   const [uploading, setUploading] = useState(false);
   const masterPdfInputRef = useRef<HTMLInputElement>(null);
 
+  const approveMutation = trpc.procedures.approve.useMutation({
+    onSuccess: () => {
+      setApprovalError(null);
+      utils.procedures.getByCode.invalidate({ code: procedureCode });
+    },
+    onError: (err) => {
+      if ((err as any).data?.code === "FORBIDDEN") {
+        setApprovalError(
+          "Aprovação bloqueada: o aprovador não pode ser o mesmo que realizou a última edição."
+        );
+      } else {
+        setApprovalError(err.message || "Erro ao aprovar o procedimento.");
+      }
+    },
+  });
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+
+  const approvedByUserId = dbProcedure?.approvedBy ?? null;
+  const lastModifiedByUserId = dbProcedure?.lastModifiedBy ?? null;
+  const { data: approvedByUser } = trpc.auth.getUserById.useQuery(
+    { id: approvedByUserId! },
+    { enabled: approvedByUserId !== null }
+  );
+  const { data: lastModifiedByUser } = trpc.auth.getUserById.useQuery(
+    { id: lastModifiedByUserId! },
+    { enabled: lastModifiedByUserId !== null }
+  );
+
   const dbProcedureAsImported = useMemo((): ImportedProcedure | null => {
     if (!dbProcedure) return null;
 
@@ -2158,6 +2186,23 @@ const handleDeleteProcedure = async () => {
               <GitBranchPlus className="mr-2 w-4 h-4" />
               Nova revisão
             </Button>
+
+            {dbProcedure &&
+              ["ADMIN", "QUALIDADE"].includes(currentUser.role) &&
+              !isApproved && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setApprovalError(null);
+                    approveMutation.mutate({ id: dbProcedure.id });
+                  }}
+                  disabled={approveMutation.isPending}
+                  title="Aprovar este CPR (requer que outra pessoa tenha feito a última edição)"
+                >
+                  {approveMutation.isPending ? "Aprovando..." : "Aprovar CPR"}
+                </Button>
+              )}
+
 <Button
   variant="outline"
   onClick={() =>
@@ -2224,6 +2269,12 @@ disabled={!["ADMIN", "QUALIDADE"].includes(currentUser.role)}
           </div>
         </div>
 
+        {approvalError && (
+          <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+            {approvalError}
+          </div>
+        )}
+
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="flex items-start gap-4 min-w-0">
             <button
@@ -2278,7 +2329,14 @@ disabled={!["ADMIN", "QUALIDADE"].includes(currentUser.role)}
 }
                 onChange={(e) => {
   if (dbProcedure) {
-    const dbStatus = e.target.value as "nao_iniciado" | "em_desenvolvimento" | "implementado";
+    const dbStatus = e.target.value as
+      | "nao_iniciado"
+      | "em_desenvolvimento"
+      | "implementado"
+      | "em_elaboracao"
+      | "em_revisao"
+      | "bloqueado"
+      | "cancelado";
     setCurrentStatus(dbStatus);
     updateProcedureMutation.mutate({ id: dbProcedure.id, status: dbStatus });
     return;
@@ -2347,6 +2405,11 @@ disabled={!["ADMIN", "QUALIDADE"].includes(currentUser.role)}
                     <option value="nao_iniciado">Não iniciado</option>
                     <option value="em_desenvolvimento">Em desenvolvimento</option>
                     <option value="implementado">Implementado</option>
+                    <option value="em_elaboracao">Em elaboração</option>
+                    <option value="em_revisao">Em revisão</option>
+                    <option value="bloqueado">Bloqueado</option>
+                    <option value="cancelado">Cancelado</option>
+                    {isApproved && <option value="aprovado">Aprovado</option>}
                   </>
                 ) : (
                   <>
@@ -2486,31 +2549,47 @@ disabled={!["ADMIN", "QUALIDADE"].includes(currentUser.role)}
     <div className="min-w-0">
       <p className="font-semibold text-gray-700">Última edição</p>
       <p className="break-words">
-        {(procedureView as any).lastModifiedBy || "-"}
-      </p>
-            <p className="text-xs text-gray-500">
-        {(procedureView as any).lastModifiedByRole || ""}
+        {dbProcedure
+          ? (lastModifiedByUser?.name || "-")
+          : ((procedureView as any).lastModifiedBy || "-")}
       </p>
       <p className="text-xs text-gray-500">
-        {(procedureView as any).lastModifiedAt
-          ? new Date((procedureView as any).lastModifiedAt).toLocaleString()
-          : ""}
+        {dbProcedure
+          ? (lastModifiedByUser?.role || "")
+          : ((procedureView as any).lastModifiedByRole || "")}
+      </p>
+      <p className="text-xs text-gray-500">
+        {dbProcedure
+          ? (dbProcedure.lastModifiedAt
+              ? new Date(dbProcedure.lastModifiedAt).toLocaleString("pt-BR")
+              : "")
+          : ((procedureView as any).lastModifiedAt
+              ? new Date((procedureView as any).lastModifiedAt).toLocaleString()
+              : "")}
       </p>
     </div>
 
     <div className="min-w-0">
       <p className="font-semibold text-gray-700">Aprovado por</p>
       <p className="break-words">
-        {(procedureView as any).approvedBy || "-"}
+        {dbProcedure
+          ? (approvedByUser?.name || "-")
+          : ((procedureView as any).approvedBy || "-")}
       </p>
       <p className="text-xs text-gray-500">
-  {(procedureView as any).approvedByRole || ""}
-</p>
-<p className="text-xs text-gray-500">
-  {(procedureView as any).approvedAt
-    ? new Date((procedureView as any).approvedAt).toLocaleString()
-    : ""}
-</p>
+        {dbProcedure
+          ? (approvedByUser?.role || "")
+          : ((procedureView as any).approvedByRole || "")}
+      </p>
+      <p className="text-xs text-gray-500">
+        {dbProcedure
+          ? (dbProcedure.approvedAt
+              ? new Date(dbProcedure.approvedAt).toLocaleString("pt-BR")
+              : "")
+          : ((procedureView as any).approvedAt
+              ? new Date((procedureView as any).approvedAt).toLocaleString()
+              : "")}
+      </p>
     </div>
 
     <div className="min-w-0">

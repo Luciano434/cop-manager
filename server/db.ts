@@ -89,6 +89,17 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select({ id: users.id, name: users.name, role: users.role })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
 // Procedures queries
 export async function getProcedures() {
   const db = await getDb();

@@ -34,6 +34,7 @@ import {
   getEvidencesByStep,
   createEvidence,
   deleteEvidence,
+  getUserById,
   getUserByUsername,
   hasAnyUser,
   createLocalUser,
@@ -73,6 +74,12 @@ export const appRouter = router({
     hasUsers: publicProcedure.query(async () => {
       return hasAnyUser();
     }),
+
+    getUserById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return getUserById(input.id);
+      }),
 
     login: publicProcedure
       .input(z.object({
