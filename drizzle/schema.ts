@@ -28,7 +28,7 @@ export const procedures = mysqlTable("procedures", {
   code: varchar("code", { length: 50 }).notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
-  status: mysqlEnum("status", ["nao_iniciado", "em_desenvolvimento", "implementado"]).notNull().default("nao_iniciado"),
+  status: mysqlEnum("status", ["nao_iniciado", "em_desenvolvimento", "implementado", "aprovado", "em_revisao", "em_elaboracao", "bloqueado", "cancelado"]).notNull().default("nao_iniciado"),
   responsible: varchar("responsible", { length: 255 }),
   family: varchar("family", { length: 100 }),
   sections: text("sections"),
@@ -36,6 +36,10 @@ export const procedures = mysqlTable("procedures", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   createdBy: int("createdBy"),
+  approvedBy: int("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  lastModifiedBy: int("lastModifiedBy"),
+  lastModifiedAt: timestamp("lastModifiedAt"),
 }, (table) => ({
   codeIdx: index("code_idx").on(table.code),
 }));
@@ -123,10 +127,18 @@ export type Evidence = typeof evidences.$inferSelect;
 export type InsertEvidence = typeof evidences.$inferInsert;
 
 // Relations
-export const proceduresRelations = relations(procedures, ({ many }) => ({
+export const proceduresRelations = relations(procedures, ({ many, one }) => ({
   operationalSteps: many(operationalSteps),
   copLinks: many(procedureCopLinks),
   evidences: many(evidences),
+  approvedByUser: one(users, {
+    fields: [procedures.approvedBy],
+    references: [users.id],
+  }),
+  lastModifiedByUser: one(users, {
+    fields: [procedures.lastModifiedBy],
+    references: [users.id],
+  }),
 }));
 
 export const operationalStepsRelations = relations(operationalSteps, ({ one, many }) => ({

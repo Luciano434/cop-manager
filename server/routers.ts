@@ -229,13 +229,17 @@ export const appRouter = router({
         code: z.string().optional(),
         name: z.string().optional(),
         description: z.string().optional(),
-        status: z.enum(["nao_iniciado", "em_desenvolvimento", "implementado"]).optional(),
+        status: z.enum(["nao_iniciado", "em_desenvolvimento", "implementado", "em_revisao", "em_elaboracao", "bloqueado", "cancelado"]).optional(),
         responsible: z.string().optional(),
         family: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...data } = input;
-        return updateProcedure(id, data);
+        return updateProcedure(id, {
+          ...data,
+          lastModifiedBy: ctx.user.id,
+          lastModifiedAt: new Date(),
+        });
       }),
 
     delete: roleProcedure(["ADMIN", "QUALIDADE"])
@@ -267,8 +271,12 @@ export const appRouter = router({
         id: z.number(),
         sections: z.any(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         await updateProcedureSections(input.id, input.sections);
+        await updateProcedure(input.id, {
+          lastModifiedBy: ctx.user.id,
+          lastModifiedAt: new Date(),
+        });
 
         const procedure = await getProcedureById(input.id);
         if (procedure?.code && Array.isArray(input.sections)) {
@@ -308,6 +316,27 @@ export const appRouter = router({
         const masterPdfPath = `/docs/masters/${destName}`;
         await updateProcedureMasterPdfPath(input.id, masterPdfPath);
         return { path: masterPdfPath };
+      }),
+
+    approve: roleProcedure(["ADMIN", "QUALIDADE"])
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const procedure = await getProcedureById(input.id);
+        if (!procedure) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Procedimento não encontrado" });
+        }
+        if (procedure.lastModifiedBy !== null && procedure.lastModifiedBy === ctx.user.id) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "O aprovador não pode ser o mesmo que realizou a última edição",
+          });
+        }
+        await updateProcedure(input.id, {
+          status: "aprovado",
+          approvedBy: ctx.user.id,
+          approvedAt: new Date(),
+        });
+        return { success: true };
       }),
   }),
 
