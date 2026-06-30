@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { baseProcedures } from "@/data/procedures/baseProcedures";
-import { normalizeProcedureCode } from "@/lib/utils-cop";
+import { normalizeProcedureCode, getCurrentUser } from "@/lib/utils-cop";
 import { trpc } from "@/lib/trpc";
 
 type Subitem = {
@@ -465,8 +465,10 @@ export default function NovoProcedimento() {
   );
   const createProcedureMutation = trpc.procedures.create.useMutation();
   const updateProcedureMutation = trpc.procedures.update.useMutation();
+  const updateStatusMutation = trpc.procedures.updateStatus.useMutation();
   const updateSectionsMutation = trpc.procedures.updateSections.useMutation();
   const utils = trpc.useUtils();
+  const currentUser = getCurrentUser();
   const { data: copReqs = [] } = trpc.copRequirements.list.useQuery();
   const initializedForRef = useRef<string | null>(null);
 
@@ -936,10 +938,12 @@ export default function NovoProcedimento() {
           code: normalizedCode,
           name: name.trim(),
           description: description.trim() || undefined,
-          status: dbStatus,
           responsible: responsible.trim() || undefined,
           family: familyValue,
         });
+        if (["ADMIN", "QUALIDADE"].includes(currentUser.role)) {
+          await updateStatusMutation.mutateAsync({ id: loadedProcedureId, status: dbStatus });
+        }
       } else {
         await createProcedureMutation.mutateAsync({
           code: normalizedCode,
@@ -1474,9 +1478,9 @@ export default function NovoProcedimento() {
               <Button
                 type="button"
                 onClick={handleSaveProcedure}
-                disabled={isApprovedLocked || createProcedureMutation.isPending || updateProcedureMutation.isPending}
+                disabled={isApprovedLocked || createProcedureMutation.isPending || updateProcedureMutation.isPending || updateStatusMutation.isPending}
               >
-                {createProcedureMutation.isPending || updateProcedureMutation.isPending
+                {createProcedureMutation.isPending || updateProcedureMutation.isPending || updateStatusMutation.isPending
                   ? "Salvando..."
                   : isEditMode
                   ? "Salvar alterações"

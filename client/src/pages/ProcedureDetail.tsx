@@ -1363,7 +1363,8 @@ export default function ProcedureDetail() {
     { enabled: !!dbProcedure?.id }
   );
   const { data: copReqs = [] } = trpc.copRequirements.list.useQuery();
-  const updateProcedureMutation = trpc.procedures.update.useMutation();
+  const updateStatusMutation = trpc.procedures.updateStatus.useMutation();
+  const updateRevisionMutation = trpc.procedures.updateRevision.useMutation();
   const deleteProcedureMutation = trpc.procedures.delete.useMutation();
   const utils = trpc.useUtils();
   const uploadMasterPdfMutation = trpc.procedures.uploadMasterPdf.useMutation({
@@ -2094,6 +2095,25 @@ const handleDeleteProcedure = async () => {
     );
   };
 
+  const handleNewRevisionDb = async () => {
+    if (!dbProcedure) return;
+    if (dbProcedure.status !== "aprovado") {
+      alert("CPR precisa estar Aprovado para criar nova revisão.");
+      return;
+    }
+    const currentRevision = dbProcedure.revision ?? "R00";
+    const nextRevisionNumber = getNextRevision(currentRevision);
+    const nextRevision = `R${nextRevisionNumber}`;
+    try {
+      await updateRevisionMutation.mutateAsync({ id: dbProcedure.id, revision: nextRevision });
+      await updateStatusMutation.mutateAsync({ id: dbProcedure.id, status: "em_revisao" });
+      await utils.procedures.getByCode.invalidate({ code: procedureCode });
+      alert(`Revisão ${nextRevision} criada. Status alterado para Em Revisão.`);
+    } catch (err: any) {
+      alert(err?.message || "Erro ao criar nova revisão.");
+    }
+  };
+
   const handleUploadMasterPdf = async (file: File) => {
     if (!dbProcedure) return;
     setUploading(true);
@@ -2166,16 +2186,21 @@ const handleDeleteProcedure = async () => {
 
             <Button
               variant="outline"
-              onClick={handleNewRevision}
+              onClick={dbProcedure ? handleNewRevisionDb : handleNewRevision}
               disabled={
-  !!dbProcedure ||
-  !isApproved ||
-  !isSelectedLatestRevision ||
-  !["ADMIN", "QUALIDADE"].includes(currentUser.role)
-}
+                dbProcedure
+                  ? !isApproved ||
+                    !["ADMIN", "QUALIDADE"].includes(currentUser.role) ||
+                    updateRevisionMutation.isPending
+                  : !isApproved ||
+                    !isSelectedLatestRevision ||
+                    !["ADMIN", "QUALIDADE"].includes(currentUser.role)
+              }
               title={
-                !!dbProcedure
-                  ? "Revisões não disponíveis para procedimentos cadastrados no banco de dados"
+                dbProcedure
+                  ? isApproved
+                    ? "Criar nova revisão"
+                    : "Disponível apenas quando o CPR estiver Aprovado"
                   : !isSelectedLatestRevision
                   ? "Disponível apenas na revisão atual"
                   : isApproved
@@ -2338,7 +2363,7 @@ disabled={!["ADMIN", "QUALIDADE"].includes(currentUser.role)}
       | "bloqueado"
       | "cancelado";
     setCurrentStatus(dbStatus);
-    updateProcedureMutation.mutate({ id: dbProcedure.id, status: dbStatus });
+    updateStatusMutation.mutate({ id: dbProcedure.id, status: dbStatus });
     return;
   }
 

@@ -233,13 +233,12 @@ export const appRouter = router({
         });
       }),
 
-    update: roleProcedure(["ADMIN", "QUALIDADE"])
+    update: roleProcedure(["ADMIN", "QUALIDADE", "ENGENHARIA"])
       .input(z.object({
         id: z.number(),
         code: z.string().optional(),
         name: z.string().optional(),
         description: z.string().optional(),
-        status: z.enum(["nao_iniciado", "em_desenvolvimento", "implementado", "em_revisao", "em_elaboracao", "bloqueado", "cancelado"]).optional(),
         responsible: z.string().optional(),
         family: z.string().optional(),
       }))
@@ -247,6 +246,19 @@ export const appRouter = router({
         const { id, ...data } = input;
         return updateProcedure(id, {
           ...data,
+          lastModifiedBy: ctx.user.id,
+          lastModifiedAt: new Date(),
+        });
+      }),
+
+    updateStatus: roleProcedure(["ADMIN", "QUALIDADE"])
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["nao_iniciado", "em_desenvolvimento", "implementado", "em_revisao", "em_elaboracao", "bloqueado", "cancelado"]),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        return updateProcedure(input.id, {
+          status: input.status,
           lastModifiedBy: ctx.user.id,
           lastModifiedAt: new Date(),
         });
