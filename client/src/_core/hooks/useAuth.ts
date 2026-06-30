@@ -62,6 +62,16 @@ export function useAuth(options?: UseAuthOptions) {
   ]);
 
   useEffect(() => {
+    if (meQuery.isLoading) return;
+    if (meQuery.data) return;
+    if (typeof window === "undefined") return;
+    if (window.location.pathname === "/login") return;
+    if (!localStorage.getItem("user")) return;
+    localStorage.removeItem("user");
+    window.location.href = "/login";
+  }, [meQuery.isLoading, meQuery.data]);
+
+  useEffect(() => {
     if (!redirectOnUnauthenticated) return;
     if (meQuery.isLoading || logoutMutation.isPending) return;
     if (state.user) return;

@@ -42,14 +42,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [location] = useLocation();
 
   const localUser = getLocalUser();
-
-  const demoUser = {
-  name: "Luciano André",
-  email: "demo@rlconsult.com",
-  role: "ADMIN",
-};
-
-const currentUser = localUser || user || demoUser;
+  const currentUser = localUser ?? user ?? null;
   const isAdmin = currentUser?.role === "ADMIN";
 
   const menuItems = [

@@ -44,3 +44,16 @@ export const adminProcedure = t.procedure.use(
     });
   }),
 );
+
+export const roleProcedure = (allowedRoles: string[]) =>
+  t.procedure.use(
+    t.middleware(({ ctx, next }) => {
+      if (!ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+      }
+      if (!allowedRoles.includes(ctx.user.role)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: role insuficiente." });
+      }
+      return next({ ctx: { ...ctx, user: ctx.user } });
+    })
+  );

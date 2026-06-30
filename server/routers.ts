@@ -6,7 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
-import { adminProcedure, publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { adminProcedure, publicProcedure, protectedProcedure, roleProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
   getProcedures,
@@ -207,7 +207,7 @@ export const appRouter = router({
         return getProcedureByCode(input.code);
       }),
 
-    create: protectedProcedure
+    create: roleProcedure(["ADMIN", "QUALIDADE", "ENGENHARIA"])
       .input(z.object({
         code: z.string(),
         name: z.string(),
@@ -223,7 +223,7 @@ export const appRouter = router({
         });
       }),
 
-    update: protectedProcedure
+    update: roleProcedure(["ADMIN", "QUALIDADE"])
       .input(z.object({
         id: z.number(),
         code: z.string().optional(),
@@ -238,7 +238,7 @@ export const appRouter = router({
         return updateProcedure(id, data);
       }),
 
-    delete: protectedProcedure
+    delete: roleProcedure(["ADMIN", "QUALIDADE"])
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteProcedure(input.id);
@@ -262,7 +262,7 @@ export const appRouter = router({
         return { count };
       }),
 
-    updateSections: protectedProcedure
+    updateSections: roleProcedure(["ADMIN", "QUALIDADE", "ENGENHARIA"])
       .input(z.object({
         id: z.number(),
         sections: z.any(),
@@ -284,16 +284,13 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    uploadMasterPdf: protectedProcedure
+    uploadMasterPdf: roleProcedure(["ADMIN", "QUALIDADE"])
       .input(z.object({
         id: z.number(),
         fileName: z.string(),
         fileBase64: z.string(),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== "ADMIN" && ctx.user.role !== "QUALIDADE") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas ADMIN e QUALIDADE podem alterar o documento mestre" });
-        }
         const ext = path.extname(input.fileName).toLowerCase();
         if (ext !== ".pdf" && ext !== ".docx") {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Apenas arquivos PDF ou DOCX são permitidos" });
@@ -328,7 +325,7 @@ export const appRouter = router({
         return getOperationalStepById(input.id);
       }),
 
-    create: protectedProcedure
+    create: roleProcedure(["ADMIN", "QUALIDADE", "ENGENHARIA"])
       .input(z.object({
         procedureId: z.number(),
         stepNumber: z.number(),
@@ -344,7 +341,7 @@ export const appRouter = router({
         return createOperationalStep(input);
       }),
 
-    update: protectedProcedure
+    update: roleProcedure(["ADMIN", "QUALIDADE", "ENGENHARIA"])
       .input(z.object({
         id: z.number(),
         stepNumber: z.number().optional(),
@@ -361,7 +358,7 @@ export const appRouter = router({
         return updateOperationalStep(id, data);
       }),
 
-    delete: protectedProcedure
+    delete: roleProcedure(["ADMIN", "QUALIDADE", "ENGENHARIA"])
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteOperationalStep(input.id);
@@ -386,7 +383,7 @@ export const appRouter = router({
         return getCopRequirementByCode(input.code);
       }),
 
-    create: protectedProcedure
+    create: roleProcedure(["ADMIN", "QUALIDADE"])
       .input(z.object({
         code: z.string(),
         description: z.string().optional(),
@@ -396,7 +393,7 @@ export const appRouter = router({
         return createCopRequirement(input);
       }),
 
-    update: protectedProcedure
+    update: roleProcedure(["ADMIN", "QUALIDADE"])
       .input(z.object({
         id: z.number(),
         code: z.string().optional(),
@@ -427,7 +424,7 @@ export const appRouter = router({
         return getCopLinksByRequirement(input.copRequirementId);
       }),
 
-    create: protectedProcedure
+    create: roleProcedure(["ADMIN", "QUALIDADE", "ENGENHARIA"])
       .input(z.object({
         procedureId: z.number(),
         copRequirementId: z.number(),
@@ -436,7 +433,7 @@ export const appRouter = router({
         return createProcedureCopLink(input.procedureId, input.copRequirementId);
       }),
 
-    delete: protectedProcedure
+    delete: roleProcedure(["ADMIN", "QUALIDADE", "ENGENHARIA"])
       .input(z.object({
         procedureId: z.number(),
         copRequirementId: z.number(),
@@ -464,7 +461,7 @@ export const appRouter = router({
         return getEvidencesByStep(input.stepId);
       }),
 
-    create: protectedProcedure
+    create: roleProcedure(["ADMIN", "QUALIDADE", "ENGENHARIA", "AUDITOR"])
       .input(z.object({
         procedureId: z.number().optional(),
         operationalStepId: z.number().optional(),
@@ -483,7 +480,7 @@ export const appRouter = router({
         });
       }),
 
-    delete: protectedProcedure
+    delete: roleProcedure(["ADMIN", "QUALIDADE", "ENGENHARIA", "AUDITOR"])
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteEvidence(input.id);
@@ -498,7 +495,7 @@ export const appRouter = router({
         return getEvidenceVerifications(input.cprCode, input.revision);
       }),
 
-    upsert: protectedProcedure
+    upsert: roleProcedure(["ADMIN", "QUALIDADE", "ENGENHARIA", "AUDITOR"])
       .input(z.object({
         cprCode: z.string(),
         revision: z.string(),
@@ -526,7 +523,7 @@ export const appRouter = router({
         return savedId;
       }),
 
-    updateCopCodes: protectedProcedure
+    updateCopCodes: roleProcedure(["ADMIN", "QUALIDADE", "ENGENHARIA", "AUDITOR"])
       .input(z.object({
         id: z.number(),
         copCodes: z.array(z.string()),

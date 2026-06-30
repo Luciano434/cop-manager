@@ -7,7 +7,6 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
 import Procedimentos from "./pages/Procedimentos";
 import ProcedureDetail from "./pages/ProcedureDetail";
 import DashboardCOP from "./pages/DashboardCOP";
@@ -68,16 +67,8 @@ function Router() {
       <Route path="/">
         {() => {
           const user = getLoggedUser();
-
-          if (!user) {
-            return <Redirect to="/login" />;
-          }
-
-          return (
-            <DashboardLayout>
-              <Home />
-            </DashboardLayout>
-          );
+          if (!user) return <Redirect to="/login" />;
+          return <Redirect to="/procedimentos" />;
         }}
       </Route>
 
