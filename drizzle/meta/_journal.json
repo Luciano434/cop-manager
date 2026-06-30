@@ -71,6 +71,13 @@
       "when": 1782846293842,
       "tag": "0009_wide_vengeance",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1782849691963,
+      "tag": "0010_known_miracleman",
+      "breakpoints": true
     }
   ]
 }

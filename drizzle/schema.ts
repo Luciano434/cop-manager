@@ -31,6 +31,7 @@ export const procedures = mysqlTable("procedures", {
   status: mysqlEnum("status", ["nao_iniciado", "em_desenvolvimento", "implementado", "aprovado", "em_revisao", "em_elaboracao", "bloqueado", "cancelado"]).notNull().default("nao_iniciado"),
   responsible: varchar("responsible", { length: 255 }),
   family: varchar("family", { length: 100 }),
+  revision: varchar("revision", { length: 20 }).notNull().default("R00"),
   sections: text("sections"),
   masterPdfPath: varchar("masterPdfPath", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -46,6 +47,28 @@ export const procedures = mysqlTable("procedures", {
 
 export type Procedure = typeof procedures.$inferSelect;
 export type InsertProcedure = typeof procedures.$inferInsert;
+
+export const procedureRevisions = mysqlTable("procedure_revisions", {
+  id: int("id").autoincrement().primaryKey(),
+  procedureId: int("procedureId").notNull(),
+  revision: varchar("revision", { length: 20 }).notNull().default("R00"),
+  status: mysqlEnum("status", ["nao_iniciado", "em_desenvolvimento", "implementado", "aprovado", "em_revisao", "em_elaboracao", "bloqueado", "cancelado"]).notNull().default("aprovado"),
+  sections: text("sections"),
+  name: text("name"),
+  description: text("description"),
+  responsible: varchar("responsible", { length: 255 }),
+  approvedBy: int("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  lastModifiedBy: int("lastModifiedBy"),
+  lastModifiedAt: timestamp("lastModifiedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  procedureIdIdx: index("pr_procedureId_idx").on(table.procedureId),
+  revisionIdx: index("pr_revision_idx").on(table.procedureId, table.revision),
+}));
+
+export type ProcedureRevision = typeof procedureRevisions.$inferSelect;
+export type InsertProcedureRevision = typeof procedureRevisions.$inferInsert;
 
 // Etapas Operacionais (subtarefas de um procedimento)
 export const operationalSteps = mysqlTable("operational_steps", {
@@ -131,12 +154,28 @@ export const proceduresRelations = relations(procedures, ({ many, one }) => ({
   operationalSteps: many(operationalSteps),
   copLinks: many(procedureCopLinks),
   evidences: many(evidences),
+  revisions: many(procedureRevisions),
   approvedByUser: one(users, {
     fields: [procedures.approvedBy],
     references: [users.id],
   }),
   lastModifiedByUser: one(users, {
     fields: [procedures.lastModifiedBy],
+    references: [users.id],
+  }),
+}));
+
+export const procedureRevisionsRelations = relations(procedureRevisions, ({ one }) => ({
+  procedure: one(procedures, {
+    fields: [procedureRevisions.procedureId],
+    references: [procedures.id],
+  }),
+  approvedByUser: one(users, {
+    fields: [procedureRevisions.approvedBy],
+    references: [users.id],
+  }),
+  lastModifiedByUser: one(users, {
+    fields: [procedureRevisions.lastModifiedBy],
     references: [users.id],
   }),
 }));

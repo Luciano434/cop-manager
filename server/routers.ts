@@ -53,6 +53,9 @@ import {
   updateProcedureSections,
   syncCopRequirementsFromCap7,
   updateProcedureMasterPdfPath,
+  createProcedureRevision,
+  getProcedureRevisions,
+  getProcedureRevisionByRevision,
 } from "./db";
 
 export const appRouter = router({
@@ -338,11 +341,43 @@ export const appRouter = router({
             message: "O aprovador não pode ser o mesmo que realizou a última edição",
           });
         }
+        await createProcedureRevision({
+          procedureId: procedure.id,
+          revision: (procedure as any).revision ?? "R00",
+          status: "aprovado",
+          sections: procedure.sections ?? null,
+          name: procedure.name,
+          description: procedure.description ?? null,
+          responsible: procedure.responsible ?? null,
+          approvedBy: ctx.user.id,
+          approvedAt: new Date(),
+          lastModifiedBy: procedure.lastModifiedBy ?? null,
+          lastModifiedAt: procedure.lastModifiedAt ?? null,
+        });
         await updateProcedure(input.id, {
           status: "aprovado",
           approvedBy: ctx.user.id,
           approvedAt: new Date(),
         });
+        return { success: true };
+      }),
+
+    getRevisions: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return getProcedureRevisions(input.id);
+      }),
+
+    getRevision: publicProcedure
+      .input(z.object({ id: z.number(), revision: z.string() }))
+      .query(async ({ input }) => {
+        return getProcedureRevisionByRevision(input.id, input.revision);
+      }),
+
+    updateRevision: roleProcedure(["ADMIN", "QUALIDADE", "ENGENHARIA"])
+      .input(z.object({ id: z.number(), revision: z.string() }))
+      .mutation(async ({ input }) => {
+        await updateProcedure(input.id, { revision: input.revision });
         return { success: true };
       }),
   }),

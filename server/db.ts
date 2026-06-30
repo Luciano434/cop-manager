@@ -1,6 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, procedures, operationalSteps, copRequirements, procedureCopLinks, evidences, evidenceVerifications } from "../drizzle/schema";
+import { InsertUser, InsertProcedureRevision, users, procedures, procedureRevisions, operationalSteps, copRequirements, procedureCopLinks, evidences, evidenceVerifications } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -353,6 +353,34 @@ export async function updateProcedureSections(procedureId: number, sections: any
   await db.update(procedures)
     .set({ sections: JSON.stringify(sections) })
     .where(eq(procedures.id, procedureId));
+}
+
+export async function createProcedureRevision(data: InsertProcedureRevision): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(procedureRevisions).values(data);
+}
+
+export async function getProcedureRevisions(procedureId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select()
+    .from(procedureRevisions)
+    .where(eq(procedureRevisions.procedureId, procedureId))
+    .orderBy(procedureRevisions.createdAt);
+}
+
+export async function getProcedureRevisionByRevision(procedureId: number, revision: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select()
+    .from(procedureRevisions)
+    .where(and(
+      eq(procedureRevisions.procedureId, procedureId),
+      eq(procedureRevisions.revision, revision),
+    ))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
 }
 
 export async function updateUserPassword(id: number, passwordHash: string): Promise<void> {
